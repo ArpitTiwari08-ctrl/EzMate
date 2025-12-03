@@ -1,0 +1,1432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EzMate | Smart Roommate Matching Platform</title>
+    
+   <style>
+  /* CSS Variables for colors, derived from the original Tailwind configuration */
+  :root {
+      --primary: #2563EB; /* Blue 600 */
+      --secondary: #10B981; /* Emerald 500 */
+      --background: #F7F9FC;
+      --card-bg: #FFFFFF;
+      --gray-900: #111827;
+      --gray-800: #1f2937;
+      --gray-600: #4b5563;
+      --blue-100: #DBEAFE;
+      --blue-50: #EFF6FF;
+      --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+      --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  }
+
+  /* Base Styles */
+  html { scroll-behavior: smooth; }
+  body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--background);
+      color: var(--gray-800);
+      margin: 0;
+      line-height: 1.5;
+      /* leave room for fixed header capsule */
+      padding-top: 88px; /* adjust if your capsule height changes */
+  }
+
+  /* Layout Helpers */
+  .container {
+      max-width: 1280px;
+      margin-left: auto;
+      margin-right: auto;
+      padding-left: 1rem;
+      padding-right: 1rem;
+  }
+
+  /* Responsive Padding */
+  @media (min-width: 640px) {
+      .container { padding-left: 1.5rem; padding-right: 1.5rem; }
+  }
+  @media (min-width: 1024px) {
+      .container { padding-left: 2rem; padding-right: 2rem; }
+  }
+
+  /* Utilities */
+  .flex { display: flex; }
+  .flex-col { flex-direction: column; }
+  .items-center { align-items: center; }
+  .justify-between { justify-content: space-between; }
+  .justify-center { justify-content: center; }
+  .text-center { text-align: center; }
+  .text-left { text-align: left; }
+  .rounded-lg { border-radius: 0.5rem; }
+  .rounded-xl { border-radius: 0.75rem; }
+  .rounded-full { border-radius: 9999px; }
+  .shadow-md { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+  .shadow-xl { box-shadow: var(--shadow-xl); }
+  /* FIXED: px typo */
+  .shadow-2xl { box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); }
+  .hidden { display: none; }
+  @media (min-width: 768px) {
+      .md-flex { display: flex; }
+      .md-py-24 { padding-top: 6rem; padding-bottom: 6rem; }
+  }
+  @media (min-width: 1024px) {
+      .lg-block { display: block; }
+  }
+
+  /* Buttons (used elsewhere on page) */
+  .btn-primary {
+      background-color: var(--primary);
+      color: white;
+      font-weight: 600;
+      padding: 0.5rem 1rem;
+      transition: 300ms;
+  }
+  .btn-primary:hover {
+      background-color: #1D4ED8;
+      transform: scale(1.05);
+  }
+  .btn-hero {
+      background-color: var(--secondary);
+      color: white;
+      font-size: 1.125rem;
+      font-weight: 700;
+      padding: 1rem 2.5rem;
+      margin-top: 2.5rem;
+      transition: 300ms;
+  }
+  .btn-hero:hover {
+      background-color: #059669;
+      transform: translateY(-0.125rem);
+  }
+
+  /* Headings and Text */
+  h1 { font-size: 3rem; font-weight: 800; line-height: 1.25; margin-bottom: 1rem; color: var(--gray-900); }
+  h1 .highlight { color: var(--secondary); }
+  h2 { font-size: 2.25rem; font-weight: 700; margin-bottom: 1rem; color: var(--gray-900); }
+  h3 { font-size: 1.25rem; font-weight: 700; margin-bottom: 0.75rem; color: var(--gray-900); }
+  p { color: var(--gray-600); margin-bottom: 1rem; }
+
+  /* Feature Card & Mate Card Styles */
+  .card-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 2rem;
+      margin-top: 3rem;
+  }
+  @media (min-width: 768px) {
+      .card-grid-3 { grid-template-columns: repeat(3, 1fr); }
+      .card-grid-2 { grid-template-columns: repeat(2, 1fr); }
+  }
+  .card-item {
+      background-color: var(--card-bg);
+      padding: 2rem;
+      border-radius: 0.75rem;
+      box-shadow: var(--shadow-lg);
+      border: 1px solid #f3f4f6;
+      transition: box-shadow 300ms, transform 300ms;
+  }
+  .card-item:hover {
+      box-shadow: var(--shadow-xl);
+      transform: translateY(-0.25rem);
+  }
+  
+  /* Key Features Section specific overrides */
+  .key-features-section {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 3rem;
+  }
+  @media (min-width: 1024px) {
+      .key-features-section { grid-template-columns: repeat(2, 1fr); }
+      .lg-order-1 { order: 1; }
+      .lg-order-2 { order: 2; }
+  }
+  
+  .feature-details {
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+      margin-top: 2rem;
+  }
+  .feature-details:first-child { margin-top: 0; }
+
+  /* Mate Card Specific Styles */
+  .mate-tag {
+      display: inline-flex;
+      align-items: center;
+      color: var(--primary);
+      background-color: var(--blue-50);
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.875rem;
+      margin-right: 0.75rem;
+      margin-bottom: 0.75rem;
+  }
+  .mate-tag .tag-icon { margin-right: 0.25rem; }
+  .mate-btn {
+      width: 100%;
+      margin-top: 1.25rem;
+      background-color: var(--primary);
+      color: white;
+      font-weight: 600;
+      padding: 0.5rem 0;
+      border-radius: 0.5rem;
+      transition: background-color 300ms;
+  }
+  .mate-btn:hover { background-color: #1D4ED8; }
+  
+  /* Footer Styles */
+  footer { background-color: var(--gray-800); color: white; padding-top: 3rem; padding-bottom: 3rem; }
+  footer .footer-logo { color: var(--secondary); font-size: 1.25rem; font-weight: 700; }
+  footer a { color: #9ca3af; text-decoration: none; transition: color 150ms; font-size: 0.875rem; }
+  footer a:hover { color: white; }
+  footer .footer-title { color: var(--secondary); font-size: 1.125rem; font-weight: 600; margin-bottom: 0.75rem; }
+  .footer-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 2rem;
+      margin-bottom: 2rem;
+  }
+  @media (min-width: 768px) {
+      .footer-grid { grid-template-columns: repeat(4, 1fr); }
+  }
+  .footer-bottom { border-top: 1px solid #374151; padding-top: 2rem; text-align: center; color: #9ca3af; font-size: 0.875rem; }
+
+  /* Call to Action Specific */
+  .cta-section { background-color: var(--primary); padding-top: 4rem; padding-bottom: 5rem; }
+  .cta-section h2 { color: white; }
+  .cta-section p { color: var(--blue-100); font-size: 1.25rem; }
+  .cta-btn { background-color: white; color: var(--primary); font-size: 1.125rem; font-weight: 700; padding: 1rem 2.5rem; transition: 300ms; }
+  .cta-btn:hover { background-color: #f3f4f6; }
+
+  /* Icon SVG Base Styling */
+  .svg-icon { width: 24px; height: 24px; stroke-width: 2.5; fill: none; }
+  .svg-icon-small { width: 16px; height: 16px; stroke-width: 3; fill: none; }
+  .svg-icon-medium { width: 24px; height: 24px; stroke-width: 2.5; fill: none; }
+  .svg-icon-large { width: 64px; height: 64px; stroke-width: 2; fill: none; }
+  .svg-fill-none { fill: none; }
+
+  /* Hero Background */
+  .hero-background {
+      background-image: url('background.avif');
+      background-size: cover;
+      background-position: center;
+      position: relative;
+      color: white !important;
+      padding-top: 11rem; 
+      padding-bottom: 21rem;
+  }
+  .hero-background::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.4);
+      z-index: 1;
+  }
+  .hero-content { position: relative; z-index: 2; }
+  .hero-content h1 { color: white !important; }
+  .hero-content p { color: #E0F2F1 !important; }
+
+  /* --- EZMATE NAVBAR J (Capsule) + Dropdown --- */
+
+  header {
+    background: transparent !important;
+    box-shadow: none !important;
+    border: 0 !important;
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 60;
+  }
+
+  .ez-wrap { padding: 1rem; background: transparent; }
+
+  .ez-navbar {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 16px;
+      padding: 0.9rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 10px 30px rgba(0,0,0,.06);
+      position: relative;
+  }
+
+  .ez-logo {
+      display: flex;
+      align-items: center;
+      gap: .5rem;
+      font-weight: 800;
+      font-size: 1.7rem;
+      color: var(--primary);
+      text-decoration: none;
+  }
+  .ez-logo svg { width: 28px; height: 28px; stroke: var(--secondary); stroke-width: 2.2; }
+
+  .ez-nav-center {
+      position: absolute; left: 50%; transform: translateX(-50%);
+      display: flex; gap: 1.2rem;
+  }
+  .ez-nav-center a {
+      text-decoration: none; color: #374151; font-weight: 700;
+      padding: .45rem 1rem; border-radius: 10px; transition: .2s;
+  }
+  .ez-nav-center a:hover { background: #EFF6FF; color: var(--primary); }
+
+  .ez-profile {
+      width: 38px; height: 38px; border-radius: 50%; overflow: hidden;
+      border: 2px solid #fff; box-shadow: 0 0 8px rgba(16,185,129,.25); cursor: pointer; flex-shrink: 0;
+  }
+  .ez-profile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .ez-dropdown {
+      position: absolute; top: calc(100% + 8px); right: 1rem; background: #fff;
+      border: 1px solid #e5e7eb; border-radius: 10px; box-shadow: 0 12px 28px rgba(0,0,0,.12);
+      padding: .5rem; min-width: 180px; z-index: 30; display: none;
+  }
+  .ez-dropdown.open { display: block; }
+  .ez-dropdown a {
+      display: flex; align-items: center; gap: .5rem; padding: .5rem .75rem;
+      color: #111827; text-decoration: none; border-radius: 8px; font-weight: 600;
+  }
+  .ez-dropdown a:hover { background: #f3f4f6; }
+  .ez-dropdown .sep { height: 1px; background: #e5e7eb; margin: .5rem 0; }
+
+  :root { --nav-h: 88px; }
+  body { padding-top: 0 !important; }
+  .hero-background { margin-top: calc(var(--nav-h) * -1); padding-top: calc(11rem + var(--nav-h)); }
+  .hero-background + * { scroll-margin-top: var(--nav-h); }
+
+  /* ======== PROFILE PANEL (kept, but not used by modal) ======== */
+  #profile-panel {
+    max-width: 880px; margin: 2rem auto; background: var(--card-bg); border: 1px solid #e5e7eb;
+    border-radius: 1rem; box-shadow: var(--shadow-lg); padding: 1.25rem 1.5rem;
+  }
+  .profile-grid { display: grid; grid-template-columns: 1fr; gap: .75rem; }
+  @media (min-width: 768px) { .profile-grid { grid-template-columns: 1fr 1fr; } }
+  .profile-row { display:flex; align-items:center; justify-content:space-between; background:#f9fafb; border:1px solid #eef2f7; border-radius:.75rem; padding:.75rem 1rem; }
+  .profile-label { color: var(--gray-600); font-weight: 600; }
+  .profile-value { color: var(--gray-900); font-weight: 700; }
+  .verify-box {
+    border: 1px dashed #f59e0b; background: #fffbeb; color: #92400e; padding: .8rem 1rem; border-radius: .75rem; font-weight: 600;
+  }
+  .hidden { display: none; }
+
+  /* --- PROFILE OVERLAY MODAL (foreground + blur) --- */
+  #profile-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.45);
+      backdrop-filter: blur(6px);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999; /* ABOVE EVERYTHING */
+  }
+  #profile-overlay.show { display: flex; }
+
+  #profile-box {
+      background: white;
+      width: 90%;
+      max-width: 520px;
+      padding: 2rem;
+      border-radius: 1rem;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.25);
+      transform: translateY(25px);
+      opacity: 0;
+      transition: 300ms ease;
+      position: relative;
+  }
+  #profile-overlay.show #profile-box {
+      transform: translateY(0);
+      opacity: 1;
+  }
+
+  #profile-close-btn {
+      position: absolute;
+      top: 10px;
+      right: 12px;
+      width: 36px; height: 36px;
+      display: grid; place-items: center;
+      font-size: 20px;
+      color: #555;
+      cursor: pointer;
+      border-radius: .5rem;
+      transition: 200ms;
+  }
+  #profile-close-btn:hover { background: #f3f4f6; color: #111; }
+  /* --- Profile overlay (foreground + blur) --- */
+#profile-overlay{
+  position:fixed; inset:0; display:none; justify-content:center; align-items:center;
+  background:rgba(0,0,0,.45); backdrop-filter:blur(6px); z-index:9999;
+}
+#profile-overlay.show{ display:flex; }
+#profile-box{
+  background:#fff; width:90%; max-width:520px; padding:2rem; border-radius:1rem;
+  box-shadow:0 20px 40px rgba(0,0,0,.25); position:relative; transform:translateY(24px); opacity:0;
+  transition:300ms ease;
+}
+#profile-overlay.show #profile-box{ transform:translateY(0); opacity:1; }
+#profile-close-btn{
+  position:absolute; top:10px; right:12px; width:36px; height:36px; display:grid; place-items:center;
+  font-size:20px; color:#555; cursor:pointer; border-radius:.5rem; transition:200ms;
+}
+#profile-close-btn:hover{ background:#f3f4f6; color:#111; }
+
+/* --- Tiny floating “Meet Mates” button (non-intrusive) --- */
+.fab-mates{
+  position:fixed; right:16px; bottom:16px; z-index:60;
+  background:#2563EB; color:#fff; font-weight:800; border-radius:9999px;
+  padding:.75rem 1rem; box-shadow:0 10px 24px rgba(0,0,0,.12); text-decoration:none;
+}
+.fab-mates:hover{ filter:brightness(.95); }
+
+</style>
+
+</head>
+<body class="text-gray-800">
+
+    <!-- AUTH GUARD: redirect to login.html if not logged in -->
+    <script>
+      (function () {
+        try {
+          const s = JSON.parse(sessionStorage.getItem('ezmate_current_user') || 'null');
+          if (!s || !s.email) {
+            window.location.href = 'login.html';
+          } else {
+            window.__EZMATE_USER__ = s; // cache for navbar/profile script
+          }
+        } catch {
+          window.location.href = 'login.html';
+        }
+      })();
+    </script>
+
+    <!-- NAVBAR: Capsule (J) with avatar image + dropdown -->
+    <header>
+        <div class="ez-wrap">
+            <div class="ez-navbar" id="ez-navbar">
+                <!-- LEFT: LOGO -->
+                <a href="index.html" class="ez-logo">
+                    EzMate
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+                        <path fill="none" d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+                        <polyline fill="none" points="9 22 9 12 15 12 15 22"/>
+                    </svg>
+                </a>
+
+                <!-- CENTER: LINKS -->
+                <nav class="ez-nav-center">
+                    <a href="#features">Features</a>
+                    <a href="roommates.html">Meet Mates</a>
+                    <a href="#about">Mission</a>
+                </nav>
+
+                <!-- RIGHT: PROFILE AVATAR -->
+                <div class="ez-profile" id="ez-avatar" aria-haspopup="true" aria-expanded="false">
+                    <img id="ez-avatar-img" alt="Profile" src="" />
+                </div>
+
+                <!-- DROPDOWN -->
+                <div class="ez-dropdown" id="ez-menu" role="menu" aria-label="User menu">
+                    <a href="#" id="ez-profile-link">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;stroke:#111827;">
+                            <path fill="none" d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                            <circle cx="10" cy="8" r="4" fill="none"></circle>
+                        </svg>
+                        Profile
+                    </a>
+                    <div class="sep"></div>
+                    <a href="#" id="ez-logout-link">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;stroke:#111827;">
+                            <path fill="none" d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                            <path d="M16 17l5-5-5-5M21 12H9" fill="none"></path>
+                        </svg>
+                        Log Out
+                    </a>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero-background">
+        <div class="container text-center hero-content">
+            <h1 style="font-size: 3rem;">
+                Find Your Perfect <span style="color: var(--secondary);">EzMate.</span>
+            </h1>
+            <p style="font-size: 1.25rem; max-width: 48rem; margin: 0 auto 2.5rem;">
+                Stop searching, start matching. We connect you with highly compatible roommates for a safer, more comfortable, and conflict-free living environment.
+            </p>
+            <a href="roommates.html" class="btn-hero rounded-xl shadow-xl" style="transform: none;">
+                Get Started Now
+            </a>
+        </div>
+    </section>
+
+    <!-- ===== PROFILE PANEL (kept but not opened by menu; IDs renamed to avoid clashes) ===== -->
+    <section id="profile-panel" class="hidden" aria-label="User profile">
+      <div class="container">
+        <h2 style="margin:0 0 .5rem; color: var(--gray-900);">Your Profile</h2>
+        <p style="margin:0 0 1rem; color: var(--gray-600);">Stored locally in your browser.</p>
+
+        <div class="profile-grid">
+          <div class="profile-row">
+            <span class="profile-label">Username</span>
+            <span class="profile-value" id="pf-username-inline">—</span>
+          </div>
+          <div class="profile-row">
+            <span class="profile-label">Email</span>
+            <span class="profile-value" id="pf-email-inline">—</span>
+          </div>
+          <div class="profile-row">
+            <span class="profile-label">Password</span>
+            <span class="profile-value">XXXXXX</span>
+          </div>
+        </div>
+
+        <div style="margin-top:1rem; display:grid; gap:.75rem;">
+          <div class="verify-box">Email verification not completed</div>
+          <div class="verify-box">Identity verification not completed</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Smart Matching System Section -->
+    <section id="features" style="padding-top: 5rem; padding-bottom: 5rem; background-color: var(--card-bg);">
+        <div class="container">
+            <div class="text-center" style="margin-bottom: 3rem;">
+                <h2 style="font-size: 2.25rem; font-weight: 700; color: var(--gray-900);">The Power of Compatibility</h2>
+                <p style="font-size: 1.125rem; color: var(--gray-600); max-width: 42rem; margin: 0.75rem auto 0;">
+                    EzMate solves the problem of bad roommate matches by using a **smart matching system** based on detailed profiles.
+                </p>
+            </div>
+
+            <div class="card-grid card-grid-3">
+                <!-- Feature 1 -->
+                <div class="card-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon-medium" viewBox="0 0 24 24" style="stroke: var(--primary); margin-bottom: 1rem;">
+                        <path class="svg-fill-none" d="M10 2v2a6 6 0 0 0 6 6h2a6 6 0 0 0 6-6V2"/><path d="M4 16h16a2 2 0 0 0 2-2v-2a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v2a2 2 0 0 0 2 2zM8 22H6a2 2 0 0 1-2-2v-4h4v4a2 2 0 0 1-2 2z"/>
+                    </svg>
+                    <h3>Deep Profile Matching</h3>
+                    <p>Profiles include **lifestyle preferences, cleanliness, sleep schedules, social habits, and budget**. We focus on compatibility rather than just availability.</p>
+                </div>
+
+                <!-- Feature 2 -->
+                <div class="card-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon-medium" viewBox="0 0 24 24" style="stroke: var(--primary); margin-bottom: 1rem;">
+                        <path class="svg-fill-none" d="M12 20V10M18 20V4M6 20v-4"/>
+                    </svg>
+                    <h3>High Match Scores</h3>
+                    <p>Users choose their room and set preferences, and the platform recommends potential roommates with **high match scores**—making finding someone you'll get along with easy.</p>
+                </div>
+
+                <!-- Feature 3 -->
+                <div class="card-item">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon-medium" viewBox="0 0 24 24" style="stroke: var(--primary); margin-bottom: 1rem;">
+                        <path class="svg-fill-none" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/>
+                    </svg>
+                    <h3>Safer, Comfortable Living</h3>
+                    <p>By prioritizing shared expectations and compatibility, we help create a **safer, more comfortable, and conflict-free living environment** for everyone.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Key Features Section -->
+    <section id="key-features" style="padding-top: 5rem; padding-bottom: 5rem; background-color: var(--background);">
+        <div class="container">
+            <div class="text-center" style="margin-bottom: 3rem;">
+                <span style="color: var(--secondary); font-weight: 600; text-transform: uppercase;">Core Features</span>
+                <h2 style="margin-top: 0.5rem;">Everything You Need to Live Well</h2>
+            </div>
+            
+            <div class="key-features-section">
+                
+                <!-- Illustration Block -->
+                <div class="lg-order-1 flex justify-center">
+                    <div class="card-item" style="max-width: 28rem; border-bottom: 4px solid rgba(37, 99, 235, 0.5); padding: 1.5rem;">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon-large" viewBox="0 0 24 24" style="stroke: var(--primary); margin: 0 auto 1rem;">
+                            <path class="svg-fill-none" d="M14 19a6 6 0 0 0-12 0"/><circle cx="8" cy="10" r="4"/><path d="M22 19a6 6 0 0 0-6-6h-2M10 19a6 6 0 0 1 6-6h2"/><circle cx="16" cy="10" r="4"/>
+                        </svg>
+                        <p style="font-size: 1.25rem; font-weight: 600; text-align: center; color: var(--gray-600);">Matching the right vibe.</p>
+                        <ul style="margin-top: 1rem; padding-left: 0; list-style: none; text-align: left; color: var(--gray-600);">
+                            <li class="flex items-center" style="margin-bottom: 0.5rem; gap: 0.5rem;">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon-small" viewBox="0 0 24 24" style="stroke: var(--secondary);">
+                                    <path class="svg-fill-none" d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M9 11l3 3L22 4"/>
+                                </svg>
+                                Budget Aligned
+                            </li>
+                            <li class="flex items-center" style="margin-bottom: 0.5rem; gap: 0.5rem;">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon-small" viewBox="0 0 24 24" style="stroke: var(--secondary);">
+                                    <path class="svg-fill-none" d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M9 11l3 3L22 4"/>
+                                </svg>
+                                Cleanliness Matched
+                            </li>
+                            <li class="flex items-center" style="margin-bottom: 0.5rem; gap: 0.5rem;">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon-small" viewBox="0 0 24 24" style="stroke: var(--secondary);">
+                                    <path class="svg-fill-none" d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M9 11l3 3L22 4"/>
+                                </svg>
+                                Socially Compatible
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Features List Block -->
+                <div class="lg-order-2" style="margin-top: 2rem;">
+                    <div class="feature-details">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon" viewBox="0 0 24 24" style="stroke: var(--secondary); flex-shrink: 0;">
+                            <path class="svg-fill-none" d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 10l-2.04 2.04L17 9"/>
+                        </svg>
+                        <div>
+                            <h3>Verified Profiles</h3>
+                            <p style="margin-top: 0.25rem;">Peace of mind guaranteed. All users undergo a verification process to ensure trust and security within the community.</p>
+                        </div>
+                    </div>
+
+                    <div class="feature-details">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon" viewBox="0 0 24 24" style="stroke: var(--secondary); flex-shrink: 0;">
+                            <path class="svg-fill-none" d="M14 22V10a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h4l4 4 4-4z"/><path d="M18 18V6a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2"/>
+                        </svg>
+                        <div>
+                            <h3>Secure Messaging</h3>
+                            <p style="margin-top: 0.25rem;">Chat directly with potential roommates using our in-app secure messaging system before making any commitment.</p>
+                        </div>
+                    </div>
+
+                    <div class="feature-details">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon" viewBox="0 0 24 24" style="stroke: var(--secondary); flex-shrink: 0;">
+                            <path class="svg-fill-none" d="M22 3.5H2l8.5 10v7l3-3v-4.5L22 3.5z"/>
+                        </svg>
+                        <div>
+                            <h3>Preference Filters</h3>
+                            <p style="margin-top: 0.25rem;">Use powerful filters to narrow down searches based on specific needs like move-in dates, location, and room type.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="feature-details">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon" viewBox="0 0 24 24" style="stroke: var(--secondary); flex-shrink: 0;">
+                            <path class="svg-fill-none" d="M15 2H5a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7z"/><path d="M14 2v4a2 2 0 0 0 2 2h4M9 13h6M9 17h6M9 9h3"/>
+                        </svg>
+                        <div>
+                            <h3>Roommate Agreements</h3>
+                            <p style="margin-top: 0.25rem;">Utilize our platform to set clear expectations and rules upfront, minimizing future conflicts with formal agreements.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- New Potential Mates Section -->
+    <section id="potential-mates" style="padding-top: 5rem; padding-bottom: 5rem; background-color: var(--card-bg);">
+        <div class="container">
+            <div class="text-center" style="margin-bottom: 3rem;">
+                <span style="color: var(--primary); font-weight: 600; text-transform: uppercase;">High Compatibility</span>
+                <h2 style="margin-top: 0.5rem;">Meet Your Potential EzMates</h2>
+                <p style="font-size: 1.125rem; color: var(--gray-600); margin-top: 0.75rem; max-width: 42rem; margin-left: auto; margin-right: auto;">
+                    These profiles have been matched with you based on lifestyle, budget, and cleanliness scores.
+                </p>
+            </div>
+
+            <div class="card-grid card-grid-3">
+                <!-- Roommate Card 1 -->
+                <div class="card-item" style="border: 1px solid rgba(37, 99, 235, 0.2);">
+                    <div class="flex items-center" style="margin-bottom: 1rem; gap: 1rem;">
+                        <div style="width: 4rem; height: 4rem; border-radius: 9999px; border: 2px solid var(--primary); background-color: var(--primary); color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.5rem;">J</div>
+                        <div>
+                            <h3 style="margin-bottom: 0.125rem;">Jane (92% Match)</h3>
+                            <p style="font-size: 0.875rem; color: var(--secondary); font-weight: 500;">Verified User</p>
+                        </div>
+                    </div>
+                    <p style="color: var(--gray-600); margin-bottom: 1rem; font-size: 0.875rem;">"Looking for a quiet, professional environment. I'm neat and usually work a 9-to-5 schedule."</p>
+                    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; font-size: 0.875rem;">
+                        <span class="mate-tag">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon-small tag-icon" viewBox="0 0 24 24" style="stroke: var(--primary);">
+                                <path class="svg-fill-none" d="M12 2v1M12 21v1M4 4l.7.7M19.3 19.3l.7.7M1 12h1M21 12h1M4 20l.7-.7M19.3 4l.7-.7"/><circle cx="12" cy="12" r="5"/>
+                            </svg>
+                            Morning Person
+                        </span>
+                        <span class="mate-tag">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon-small tag-icon" viewBox="0 0 24 24" style="stroke: var(--primary);">
+                                <path class="svg-fill-none" d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                            </svg>
+                            Budget Matched
+                        </span>
+                        <span class="mate-tag">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon-small tag-icon" viewBox="0 0 24 24" style="stroke: var(--primary);">
+                                <path class="svg-fill-none" d="M18 3a3 3 0 0 0-3 3c0 1.66 1.34 3 3 3s3-1.34 3-3a3 3 0 0 0-3-3zM3 3a3 3 0 0 0-3 3c0 1.66 1.34 3 3 3s3-1.34 3-3a3 3 0 0 0-3-3zM12 12v6M9 15h6"/>
+                            </svg>
+                            Very Clean
+                        </span>
+                    </div>
+                    <button class="mate-btn rounded-lg shadow-md">View Profile</button>
+                </div>
+
+                <!-- Roommate Card 2 -->
+                <div class="card-item" style="border: 1px solid rgba(37, 99, 235, 0.2);">
+                    <div class="flex items-center" style="margin-bottom: 1rem; gap: 1rem;">
+                        <div style="width: 4rem; height: 4rem; border-radius: 9999px; border: 2px solid var(--secondary); background-color: var(--secondary); color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.5rem;">M</div>
+                        <div>
+                            <h3 style="margin-bottom: 0.125rem;">Michael (88% Match)</h3>
+                            <p style="font-size: 0.875rem; color: var(--secondary); font-weight: 500;">Verified User</p>
+                        </div>
+                    </div>
+                    <p style="color: var(--gray-600); margin-bottom: 1rem; font-size: 0.875rem;">"I love to cook and occasionally have friends over on weekends. Respectful of shared spaces."</p>
+                    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; font-size: 0.875rem;">
+                        <span class="mate-tag">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon-small tag-icon" viewBox="0 0 24 24" style="stroke: var(--primary);">
+                                <path class="svg-fill-none" d="M12 3a9 9 0 0 0 9 9h-3a6 6 0 1 1-6-6v3a3 3 0 0 0 3-3"/>
+                            </svg>
+                            Night Owl
+                        </span>
+                        <span class="mate-tag">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon-small tag-icon" viewBox="0 0 24 24" style="stroke: var(--primary);">
+                                <path class="svg-fill-none" d="M14 6.5C14 4 12 2 9.5 2 7 2 5 4 5 6.5c0 1.25.5 2.5 1.5 3.5h6C13.5 9 14 7.75 14 6.5zM20 10H4a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2z"/>
+                            </svg>
+                            Loves Cooking
+                        </span>
+                        <span class="mate-tag">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon-small tag-icon" viewBox="0 0 24 24" style="stroke: var(--primary);">
+                                <path class="svg-fill-none" d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>
+                            </svg>
+                            Moderately Social
+                        </span>
+                    </div >
+                    <button class="mate-btn rounded-lg shadow-md">View Profile</button>
+                </div>
+
+                <!-- Roommate Card 3 -->
+                <div class="card-item" style="border: 1px solid rgba(37, 99, 235, 0.2);">
+                    <div class="flex items-center" style="margin-bottom: 1rem; gap: 1rem;">
+                        <div style="width: 4rem; height: 4rem; border-radius: 9999px; border: 2px solid var(--primary); background-color: #4F46E5; color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.5rem;">S</div>
+                        <div>
+                            <h3 style="margin-bottom: 0.125rem;">Sarah (95% Match)</h3>
+                            <p style="font-size: 0.875rem; color: var(--secondary); font-weight: 500;">Verified User</p>
+                        </div>
+                    </div>
+                    <p style="color: var(--gray-600); margin-bottom: 1rem; font-size: 0.875rem;">"Seeking a roommate for a two-bedroom. I keep things very tidy and value quiet study time."</p>
+                    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; font-size: 0.875rem;">
+                        <span class="mate-tag">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon-small tag-icon" viewBox="0 0 24 24" style="stroke: var(--primary);">
+                                <path class="svg-fill-none" d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V6.5A2.5 2.5 0 0 0 17.5 4H10M12 2v2M4 4h7"/>
+                            </svg>
+                            Study Focused
+                        </span>
+                        <span class="mate-tag">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon-small tag-icon" viewBox="0 0 24 24" style="stroke: var(--primary);">
+                                <path class="svg-fill-none" d="M10 20v-6a4 4 0 0 1 4-4h.8M22 10V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10M2 14h20M17 17h4"/>
+                            </svg>
+                            On Time Rent
+                        </span>
+                        <span class="mate-tag">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon-small tag-icon" viewBox="0 0 24 24" style="stroke: var(--primary);">
+                                <path class="svg-fill-none" d="M12 18c-3.314 0-6-2.686-6-6V6c0-3.314 2.686-6 6-6s6 2.686 6 6v6c3.314 0 6-2.686 6-6zM18 12c-3.314 0-6-2.686-6-6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M6 12c3.314 0 6-2.686 6-6V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v2"/>
+                            </svg>
+                            Quiet Lifestyle
+                        </span>
+                    </div>
+                    <button class="mate-btn rounded-lg shadow-md">View Profile</button>
+                </div>
+            </div>
+            
+            <div class="text-center" style="margin-top: 3rem;">
+                <a href="roommates.html" style="display: inline-block; color: var(--primary); border: 2px solid var(--primary); font-weight: 600; padding: 0.75rem 1.5rem; border-radius: 0.75rem; transition: 300ms; text-decoration: none;">
+                    See More Matches
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Call to Action Section -->
+    <section class="cta-section">
+        <div class="container text-center">
+            <h2 style="font-size: 2.25rem; font-weight: 700;">Ready to Find Your EzMate?</h2>
+            <p style="font-size: 1.25rem; color: var(--blue-100); margin-bottom: 2rem;">
+                Join thousands of users who have found their ideal living partners. Say goodbye to bad roommate luck.
+            </p>
+            <a href="#" class="cta-btn rounded-xl shadow-xl">
+                Start Your Search Today
+            </a>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer id="about">
+        <div class="container">
+            <div class="footer-grid">
+                <div>
+                    <h4 class="footer-logo" style="font-size: 1.25rem; font-weight: 700;">EzMate</h4>
+                    <p style="color: #9ca3af; font-size: 0.875rem;">Making compatible co-living easy.</p>
+                </div>
+                <div>
+                    <h4 class="footer-title">Company</h4>
+                    <ul style="padding-left: 0; list-style: none; margin-top: 0.5rem; line-height: 1.8;">
+                        <li><a href="#">About Us</a></li>
+                        <li><a href="#">Careers</a></li>
+                        <li><a href="#">Press</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="footer-title">Support</h4>
+                    <ul style="padding-left: 0; list-style: none; margin-top: 0.5rem; line-height: 1.8;">
+                        <li><a href="#">Help Center</a></li>
+                        <li><a href="#">Safety Guide</a></li>
+                        <li><a href="#">Contact Us</a></li>
+                    </ul>
+                </div>
+                <div>
+                    <h4 class="footer-title">Legal</h4>
+                    <ul style="padding-left: 0; list-style: none; margin-top: 0.5rem; line-height: 1.8;">
+                        <li><a href="#">Terms of Service</a></li>
+                        <li><a href="#">Privacy Policy</a></li>
+                        <li><a href="#">Cookie Policy</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                &copy; 2025 EzMate, Inc. All rights reserved.
+            </div>
+        </div>
+    </footer>
+
+    <!-- PROFILE OVERLAY MODAL (opens from avatar dropdown) -->
+    <div id="profile-overlay" aria-modal="true" role="dialog" aria-labelledby="profile-title">
+      <div id="profile-box">
+        <button id="profile-close-btn" aria-label="Close profile">&times;</button>
+        <h2 id="profile-title" style="margin-top:0; color:var(--primary); font-weight:800;">Your Profile</h2>
+        <p><strong>Username:</strong> <span id="pf-username">—</span></p>
+        <p><strong>Email:</strong> <span id="pf-email">—</span></p>
+        <p><strong>Password:</strong> ••••••</p>
+        <div style="margin-top: 1.2rem; padding: 1rem; background: #FFF7ED; border-left: 4px solid #F59E0B; border-radius: .5rem;">
+          <strong style="color:#D97706;">Verification Status:</strong>
+          <p style="margin:.25rem 0 0;">Not Completed</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- NAVBAR + PROFILE logic -->
+    <script>
+      (function () {
+        try {
+          const user = window.__EZMATE_USER__ || JSON.parse(sessionStorage.getItem('ezmate_current_user') || 'null');
+          if (!user || !user.email) return;
+
+          // Set avatar image (prefer user's avatarUrl, else fallback to inline SVG)
+          const avatarImg = document.getElementById('ez-avatar-img');
+          const fallbackSvgDataUrl =
+            'data:image/svg+xml;utf8,' +
+            encodeURIComponent(`
+              <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80">
+                <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+                  <stop offset="0%" stop-color="#2563EB"/><stop offset="100%" stop-color="#10B981"/>
+                </linearGradient></defs>
+                <rect width="100%" height="100%" fill="url(#g)"/>
+                <circle cx="40" cy="32" r="14" fill="rgba(255,255,255,0.9)"/>
+                <rect x="18" y="50" width="44" height="18" rx="9" fill="rgba(255,255,255,0.9)"/>
+              </svg>
+            `);
+
+          avatarImg.src = (user.avatarUrl && typeof user.avatarUrl === 'string' && user.avatarUrl.trim().length > 0)
+            ? user.avatarUrl
+            : fallbackSvgDataUrl;
+
+          const avatar = document.getElementById('ez-avatar');
+          const menu = document.getElementById('ez-menu');
+
+          function toggleMenu(open) {
+            const isOpen = open !== undefined ? open : !menu.classList.contains('open');
+            menu.classList.toggle('open', isOpen);
+            avatar.setAttribute('aria-expanded', String(isOpen));
+          }
+
+          // Toggle on avatar click
+          avatar.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleMenu();
+          });
+
+          // Close on click outside / ESC
+          document.addEventListener('click', (e) => {
+            if (!menu.classList.contains('open')) return;
+            if (!menu.contains(e.target) && e.target !== avatar && !avatar.contains(e.target)) {
+              toggleMenu(false);
+            }
+          });
+          document.addEventListener('keydown', (e) => { if (e.key === 'Escape') toggleMenu(false); });
+
+          // Pre-fill the inline (non-modal) panel labels just in case you show it somewhere
+          const inlineEmail = document.getElementById('pf-email-inline');
+          const inlineUser = document.getElementById('pf-username-inline');
+          function deriveUsername(email){
+            if (!email) return 'User';
+            const base = (email.split('@')[0] || 'user');
+            // FIXED: proper word-boundary regex
+            return base.replace(/[._-]+/g,' ').replace(/\b\w/g, c => c.toUpperCase());
+          }
+          if (inlineEmail) inlineEmail.textContent = user.email || '—';
+          if (inlineUser) inlineUser.textContent = user.username || deriveUsername(user.email || '');
+
+        } catch { /* ignore */ }
+      })();
+
+      /* PROFILE MODAL: run after DOM is parsed to avoid nulls */
+      window.addEventListener('DOMContentLoaded', () => {
+        const overlay = document.getElementById("profile-overlay");
+        const pfUser = document.getElementById("pf-username");
+        const pfEmail = document.getElementById("pf-email");
+        const closeBtn = document.getElementById("profile-close-btn");
+        const profileLink = document.getElementById("ez-profile-link");
+
+        function openProfile(e){
+          if (e) e.preventDefault();
+          try {
+            const user = JSON.parse(sessionStorage.getItem("ezmate_current_user") || 'null') || {};
+            pfUser.textContent = user.username || (user.email ? user.email.split('@')[0] : 'User');
+            pfEmail.textContent = user.email || "unknown@example.com";
+          } catch {
+            pfUser.textContent = 'User';
+            pfEmail.textContent = 'unknown@example.com';
+          }
+          overlay.classList.add("show");
+        }
+        function closeProfile(){
+          overlay.classList.remove("show");
+        }
+
+        profileLink.addEventListener("click", openProfile);
+        closeBtn.addEventListener("click", closeProfile);
+        overlay.addEventListener("click", (e) => { if (e.target === overlay) closeProfile(); });
+        document.addEventListener("keydown", (e) => { if (e.key === "Escape" && overlay.classList.contains("show")) closeProfile(); });
+
+        // Logout
+        document.getElementById('ez-logout-link').addEventListener('click', (e) => {
+          e.preventDefault();
+          sessionStorage.removeItem('ezmate_current_user');
+          window.location.href = 'login.html';
+        });
+      });
+    </script>
+    <!-- PROFILE OVERLAY MODAL -->
+<div id="profile-overlay" aria-modal="true" role="dialog" aria-labelledby="profile-title">
+  <div id="profile-box">
+    <button id="profile-close-btn" aria-label="Close profile">&times;</button>
+    <h2 id="profile-title" style="margin-top:0; color:#2563EB; font-weight:800;">Your Profile</h2>
+    <p><strong>Username:</strong> <span id="pf-username">—</span></p>
+    <p><strong>Email:</strong> <span id="pf-email">—</span></p>
+    <p><strong>Password:</strong> ••••••</p>
+    <div style="margin-top: 1.2rem; padding: 1rem; background: #FFF7ED; border-left: 4px solid #F59E0B; border-radius: .5rem;">
+      <strong style="color:#D97706;">Verification Status:</strong>
+      <p style="margin:.25rem 0 0;">Not Completed</p>
+    </div>
+  </div>
+</div>
+
+<!-- Always-available access to roommates -->
+<a class="fab-mates" href="roommates.html" aria-label="Open Meet Mates">Meet Mates</a>
+<script>
+(function(){
+  // If you already have a dropdown link with this ID, it will “just work”
+  const profileLink = document.getElementById('ez-profile-link');
+  const overlay = document.getElementById('profile-overlay');
+  const closeBtn = document.getElementById('profile-close-btn');
+  const pfUser = document.getElementById('pf-username');
+  const pfEmail = document.getElementById('pf-email');
+
+  function openProfile(e){
+    if(e) e.preventDefault();
+    try{
+      const user = JSON.parse(sessionStorage.getItem('ezmate_current_user') || 'null') || {};
+      pfUser.textContent = user.username || (user.email ? user.email.split('@')[0] : 'User');
+      pfEmail.textContent = user.email || 'unknown@example.com';
+    }catch{
+      pfUser.textContent = 'User';
+      pfEmail.textContent = 'unknown@example.com';
+    }
+    overlay.classList.add('show');
+  }
+  function closeProfile(){ overlay.classList.remove('show'); }
+
+  if(profileLink) profileLink.addEventListener('click', openProfile);
+  if(closeBtn) closeBtn.addEventListener('click', closeProfile);
+  if(overlay) overlay.addEventListener('click', (e)=>{ if(e.target===overlay) closeProfile(); });
+  document.addEventListener('keydown', (e)=>{ if(e.key==='Escape' && overlay.classList.contains('show')) closeProfile(); });
+})();
+</script>
+<script>
+/* ===== EZMATE: Habits in profile + real users on home (minimal, non-destructive) ===== */
+(function () {
+  const USERS_KEY = 'ezmate_users';
+  const SESSION_KEY = 'ezmate_current_user';
+
+  function loadUsers() {
+    try { const v = JSON.parse(localStorage.getItem(USERS_KEY)); return Array.isArray(v) ? v : []; }
+    catch { return []; }
+  }
+  function getSession() {
+    try { const v = JSON.parse(sessionStorage.getItem(SESSION_KEY)); return v && typeof v === 'object' ? v : null; }
+    catch { return null; }
+  }
+  function getHabitsFromUser(u) {
+    if (!u) return [];
+    if (Array.isArray(u.habits)) return u.habits.filter(Boolean).map(String);
+    if (u.preferences && Array.isArray(u.preferences.habits)) return u.preferences.habits.filter(Boolean).map(String);
+    return [];
+  }
+
+  /* ---------- 1) Inject a small “Preferences & Habits” section into the profile modal(s) ---------- */
+  function ensureProfileHabitsUI() {
+    // There are two #profile-overlay blocks in your file; handle both without editing markup.
+    document.querySelectorAll('#profile-overlay #profile-box').forEach(box => {
+      if (!box || box.querySelector('.pf-habits-wrap')) return; // already added
+
+      const wrap = document.createElement('div');
+      wrap.className = 'pf-habits-wrap';
+      wrap.style.marginTop = '1rem';
+
+      const h3 = document.createElement('h3');
+      h3.textContent = 'Preferences & Habits';
+      h3.style.margin = '0 0 .5rem';
+      h3.style.color = '#111827';
+      h3.style.fontWeight = '700';
+      h3.style.fontSize = '1rem';
+
+      const chips = document.createElement('div');
+      chips.className = 'pf-habits';
+      chips.style.display = 'flex';
+      chips.style.flexWrap = 'wrap';
+      chips.style.gap = '.5rem';
+
+      const empty = document.createElement('div');
+      empty.className = 'pf-habits-empty';
+      empty.textContent = 'No habits added yet.';
+      empty.style.color = '#6B7280';
+      empty.style.fontSize = '.9rem';
+
+      wrap.appendChild(h3);
+      wrap.appendChild(chips);
+      wrap.appendChild(empty);
+      box.appendChild(wrap);
+    });
+  }
+
+  function renderChips(container, items) {
+    container.innerHTML = '';
+    items.forEach(txt => {
+      const span = document.createElement('span');
+      span.className = 'mate-tag'; // uses your existing chip styles
+      span.textContent = String(txt);
+      container.appendChild(span);
+    });
+  }
+
+  function updateProfileHabits() {
+    const me = getSession();
+    const habits = getHabitsFromUser(me);
+    document.querySelectorAll('#profile-overlay .pf-habits').forEach(el => {
+      if (habits.length) renderChips(el, habits);
+      else el.innerHTML = '';
+    });
+    document.querySelectorAll('#profile-overlay .pf-habits-empty').forEach(el => {
+      el.style.display = habits.length ? 'none' : 'block';
+    });
+  }
+
+  /* Hook into the existing “Profile” open actions without changing your code */
+  document.addEventListener('DOMContentLoaded', () => {
+    ensureProfileHabitsUI();
+    updateProfileHabits();
+  });
+  // When the menu “Profile” is clicked, refresh habits before showing
+  document.addEventListener('click', (e) => {
+    const link = e.target.closest('#ez-profile-link');
+    if (link) {
+      // slight delay lets your existing code open the modal; we only update contents
+      setTimeout(() => { ensureProfileHabitsUI(); updateProfileHabits(); }, 0);
+    }
+  });
+
+  /* ---------- 2) Replace dummy Potential EzMates with real users (if any) ---------- */
+  function initialsFrom(nameOrEmail) {
+    if (!nameOrEmail) return '?';
+    const base = String(nameOrEmail).split('@')[0];
+    const parts = base.replace(/[_\-.]+/g, ' ').trim().split(/\s+/);
+    const letters = parts.slice(0, 2).map(p => (p[0] || '').toUpperCase()).join('');
+    return letters || (base[0] || '?').toUpperCase();
+  }
+  function computeMatch(aHabits, bHabits) {
+    const A = new Set((aHabits || []).map(s => String(s).toLowerCase()));
+    const B = new Set((bHabits || []).map(s => String(s).toLowerCase()));
+    if (!A.size || !B.size) return 80;
+    let overlap = 0; B.forEach(x => { if (A.has(x)) overlap++; });
+    const score = Math.round((overlap / Math.max(A.size, B.size)) * 100);
+    return Math.max(60, Math.min(98, score));
+  }
+  function createMateCard(user, meHabits) {
+    const uHabits = getHabitsFromUser(user);
+    const match = computeMatch(meHabits, uHabits);
+    const ini = initialsFrom(user.username || user.email);
+
+    const card = document.createElement('div');
+    card.className = 'card-item';
+    card.style.border = '1px solid rgba(37, 99, 235, 0.2)';
+    card.innerHTML =
+      '<div class="flex items-center" style="margin-bottom:1rem; gap:1rem;">' +
+        '<div style="width:4rem;height:4rem;border-radius:9999px;border:2px solid var(--primary);' +
+                 'background-color:var(--primary);color:#fff;display:flex;align-items:center;' +
+                 'justify-content:center;font-weight:700;font-size:1.25rem;">' + ini + '</div>' +
+        '<div>' +
+          '<h3 style="margin:0 0 .125rem;">' + (user.username || 'User') + ' (' + match + '% Match)</h3>' +
+          '<p style="font-size:.875rem;color:var(--secondary);font-weight:500;">Verified User</p>' +
+        '</div>' +
+      '</div>' +
+      '<p style="color:var(--gray-600);margin-bottom:1rem;font-size:.9rem;">' + (user.bio || '“EzMate member.”') + '</p>' +
+      '<div class="mate-tags" style="display:flex;flex-wrap:wrap;gap:.5rem;font-size:.875rem;"></div>' +
+      '<button class="mate-btn rounded-lg shadow-md" type="button">View Profile</button>';
+
+    const tagWrap = card.querySelector('.mate-tags');
+    if (uHabits.length) renderChips(tagWrap, uHabits.slice(0, 6));
+    else {
+      const span = document.createElement('span');
+      span.className = 'mate-tag';
+      span.textContent = 'No habits set';
+      tagWrap.appendChild(span);
+    }
+    return card;
+  }
+
+  function renderHomeUsers() {
+    const grid = document.querySelector('#potential-mates .card-grid');
+    if (!grid) return;
+
+    const users = loadUsers();
+    const me = getSession();
+    const meEmail = (me && me.email) ? String(me.email).toLowerCase() : null;
+    const others = users.filter(u => {
+      const e = (u && u.email) ? String(u.email).toLowerCase() : '';
+      return !meEmail || e !== meEmail;
+    });
+
+    if (!others.length) return; // keep your 3 demo cards
+
+    const meHabits = getHabitsFromUser(me);
+    grid.innerHTML = ''; // replace demo with real users
+    others.slice(0, 6).forEach(u => grid.appendChild(createMateCard(u, meHabits)));
+  }
+
+  document.addEventListener('DOMContentLoaded', renderHomeUsers);
+})();
+</script>
+<script>
+/* EzMate Home: Real match % + real users in "Potential Mates"
+   - Reads users from localStorage ('ezmate_users') and current session from sessionStorage
+   - If there are real users (besides you), shows them. Otherwise, shows the demo 8 with the exact % from roommates.html
+   - No 60% floor — matches reflect true values or overlap
+*/
+(function(){
+  const USERS_KEY = 'ezmate_users';
+  const SESSION_KEY = 'ezmate_current_user';
+
+  // Exact percentages used on roommates.html (for the demo profiles)
+  const KNOWN_MATCH = {
+    'jane s.': 92, 'jane': 92,
+    'michael p.': 88, 'michael': 88,
+    'sarah t.': 95, 'sarah': 95,
+    'aisha m.': 90, 'aisha': 90,
+    'priya k.': 91, 'priya': 91,
+    'arjun r.': 86, 'arjun': 86,
+    'nisha s.': 89, 'nisha': 89,
+    'omar h.': 82, 'omar': 82
+  };
+
+  // Fallback demo profiles (used only if you don’t have real users yet)
+  const DEMO = [
+    { username:'Jane S.', email:'jane@example.com', bio:'Quiet 9–5, very clean, near campus.', habits:['Morning person','Very clean','Budget matched'] },
+    { username:'Michael P.', email:'michael@example.com', bio:'Loves cooking, social on weekends.', habits:['Night owl','Loves cooking','Moderately social'] },
+    { username:'Sarah T.', email:'sarah@example.com', bio:'Very tidy, quiet study time.', habits:['Study focused','On-time rent','Quiet lifestyle'] },
+    { username:'Aisha M.', email:'aisha@example.com', bio:'WFH most days; needs quiet for calls.', habits:['Work from home','Tidy','Long-term'] },
+    { username:'Priya K.', email:'priya@example.com', bio:'Early gym, clean kitchen, quiet weekdays.', habits:['Early riser','Very clean','Meal prep'] },
+    { username:'Arjun R.', email:'arjun@example.com', bio:'Hybrid work, minimalist, hikes weekends.', habits:['Minimalist','Hiker'] },
+    { username:'Nisha S.', email:'nisha@example.com', bio:'Quiet weekdays, balcony garden.', habits:['Plant lover','Tidy'] },
+    { username:'Omar H.', email:'omar@example.com', bio:'Barista + CS student; focus nights.', habits:['Coffee friendly','Focus nights'] }
+  ];
+
+  // --- Storage helpers
+  function loadUsers(){
+    try { return JSON.parse(localStorage.getItem(USERS_KEY)) || []; } catch { return []; }
+  }
+  function loadSession(){
+    try { return JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null'); } catch { return null; }
+  }
+
+  // Normalize habit arrays regardless of where you stored them on the user object
+  function getHabitsFromUser(u){
+    if (!u) return [];
+    if (Array.isArray(u.habits)) return u.habits.filter(Boolean).map(String);
+    if (u.preferences && Array.isArray(u.preferences.habits)) return u.preferences.habits.filter(Boolean).map(String);
+    // also support a single string comma list if someone saved that way
+    if (typeof u.habits === 'string') {
+      return u.habits.split(',').map(s => s.trim()).filter(Boolean);
+    }
+    return [];
+  }
+
+  // Decide which match % to show:
+  // 1) If user object already has match-like fields, use those.
+  // 2) If the name matches a known demo, use the exact roommates.html %.
+  // 3) Otherwise compute from habits overlap (no artificial floor).
+  function getMatchScore(user, meHabits){
+    if (typeof user.match === 'number') return Math.round(user.match);
+    if (typeof user.matchScore === 'number') return Math.round(user.matchScore);
+    if (typeof user.compatibility === 'number') return Math.round(user.compatibility);
+
+    const uname = String(user.username || user.name || '').trim().toLowerCase();
+    if (uname && KNOWN_MATCH[uname] != null) return KNOWN_MATCH[uname];
+
+    const A = new Set((meHabits || []).map(s => String(s).toLowerCase()));
+    const B = new Set(getHabitsFromUser(user).map(s => String(s).toLowerCase()));
+    if (!A.size || !B.size) return 80; // neutral default when no data
+    let overlap = 0; B.forEach(x => { if (A.has(x)) overlap++; });
+    const score = Math.round((overlap / Math.max(A.size, B.size)) * 100);
+    return Math.max(0, Math.min(100, score));
+  }
+
+  function initialsFrom(nameOrEmail){
+    if (!nameOrEmail) return '?';
+    const base = String(nameOrEmail).split('@')[0];
+    const parts = base.replace(/[_\-.]+/g, ' ').trim().split(/\s+/);
+    const letters = parts.slice(0,2).map(p => (p[0]||'').toUpperCase()).join('');
+    return letters || (base[0]||'?').toUpperCase();
+  }
+
+  function createMateCard(user, meHabits){
+    const uHabits = getHabitsFromUser(user);
+    const match = getMatchScore(user, meHabits);
+    const ini = initialsFrom(user.username || user.email);
+
+    const card = document.createElement('div');
+    card.className = 'card-item';
+    card.style.border = '1px solid rgba(37, 99, 235, 0.2)';
+    card.innerHTML =
+      '<div class="flex items-center" style="margin-bottom:1rem; gap:1rem;">' +
+        '<div style="width:4rem;height:4rem;border-radius:9999px;border:2px solid var(--primary);' +
+                  'background-color:var(--primary);color:#fff;display:flex;align-items:center;' +
+                  'justify-content:center;font-weight:700;font-size:1.25rem;">' + ini + '</div>' +
+        '<div>' +
+          '<h3 style="margin:0 0 .125rem;">' + (user.username || 'User') + ' (' + match + '% Match)</h3>' +
+          '<p style="font-size:.875rem;color:var(--secondary);font-weight:500;">Verified User</p>' +
+        '</div>' +
+      '</div>' +
+      '<p style="color:var(--gray-600);margin-bottom:1rem;font-size:.9rem;">' +
+        (user.bio || '“EzMate member.”') + '</p>' +
+      '<div class="mate-tags" style="display:flex;flex-wrap:wrap;gap:.5rem;font-size:.875rem;"></div>' +
+      '<button class="mate-btn rounded-lg shadow-md" type="button">View Profile</button>';
+
+    const tagWrap = card.querySelector('.mate-tags');
+    tagWrap.innerHTML = '';
+    (uHabits.length ? uHabits.slice(0,6) : ['No habits set']).forEach(txt => {
+      const span = document.createElement('span');
+      span.className = 'mate-tag';
+      span.textContent = String(txt);
+      tagWrap.appendChild(span);
+    });
+
+    return card;
+  }
+
+  // Inject cards into the home section
+  function renderPotentialMates(){
+    const grid = document.querySelector('#potential-mates .card-grid');
+    if (!grid) return;
+
+    // Figure out "me" and everyone else
+    const me = loadSession();
+    const users = loadUsers();
+    const meEmail = me && me.email ? String(me.email).toLowerCase() : '';
+    const others = users.filter(u => String(u.email||'').toLowerCase() !== meEmail);
+
+    const meHabits = getHabitsFromUser(me);
+
+    // Choose data source
+    const source = others.length ? others : DEMO;
+
+    // Clear existing static cards and rebuild
+    grid.innerHTML = '';
+    source.slice(0, 6).forEach(u => grid.appendChild(createMateCard(u, meHabits)));
+  }
+
+  // Run when DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', renderPotentialMates);
+  } else {
+    renderPotentialMates();
+  }
+})();
+</script>
+<script>
+/* EzMate Home — Make "Potential Mates" match % exactly mirror roommates.html */
+(function(){
+  const USERS_KEY = 'ezmate_users';
+  const SESSION_KEY = 'ezmate_current_user';
+
+  // Fallback mapping (used if fetch/parse of roommates.html isn't available)
+  const FALLBACK_MATCH = {
+    'jane s.': 92, 'michael p.': 88, 'sarah t.': 95, 'aisha m.': 90,
+    'priya k.': 91, 'arjun r.': 86, 'nisha s.': 89, 'omar h.': 82
+  };
+
+  // Demo people (used only if there are no real users besides you)
+  const DEMO = [
+    { username:'Jane S.', email:'jane@example.com', bio:'Quiet 9–5, very clean, near campus.', habits:['Morning person','Very clean','Budget matched'] },
+    { username:'Michael P.', email:'michael@example.com', bio:'Loves cooking, social on weekends.', habits:['Night owl','Loves cooking','Moderately social'] },
+    { username:'Sarah T.', email:'sarah@example.com', bio:'Very tidy, quiet study time.', habits:['Study focused','On-time rent','Quiet lifestyle'] },
+    { username:'Aisha M.', email:'aisha@example.com', bio:'WFH most days; needs quiet for calls.', habits:['Work from home','Tidy','Long-term'] },
+    { username:'Priya K.', email:'priya@example.com', bio:'Early gym, clean kitchen, quiet weekdays.', habits:['Early riser','Very clean','Meal prep'] },
+    { username:'Arjun R.', email:'arjun@example.com', bio:'Hybrid work, minimalist, hikes weekends.', habits:['Minimalist','Hiker'] },
+    { username:'Nisha S.', email:'nisha@example.com', bio:'Quiet weekdays, balcony garden.', habits:['Plant lover','Tidy'] },
+    { username:'Omar H.', email:'omar@example.com', bio:'Barista + CS student; focus nights.', habits:['Coffee friendly','Focus nights'] }
+  ];
+
+  // --- helpers
+  function loadUsers(){ try { return JSON.parse(localStorage.getItem(USERS_KEY))||[]; } catch { return []; } }
+  function loadSession(){ try { return JSON.parse(sessionStorage.getItem(SESSION_KEY)||'null'); } catch { return null; } }
+
+  function getHabitsFromUser(u){
+    if (!u) return [];
+    if (Array.isArray(u.habits)) return u.habits.filter(Boolean).map(String);
+    if (u.preferences && Array.isArray(u.preferences.habits)) return u.preferences.habits.filter(Boolean).map(String);
+    if (typeof u.habits === 'string') return u.habits.split(',').map(s=>s.trim()).filter(Boolean);
+    return [];
+  }
+
+  function initialsFrom(nameOrEmail){
+    if (!nameOrEmail) return '?';
+    const base = String(nameOrEmail).split('@')[0];
+    const parts = base.replace(/[_\-.]+/g,' ').trim().split(/\s+/);
+    const letters = parts.slice(0,2).map(p => (p[0]||'').toUpperCase()).join('');
+    return letters || (base[0]||'?').toUpperCase();
+  }
+
+  function computeOverlapMatch(user, meHabits){
+    const A = new Set((meHabits||[]).map(s=>String(s).toLowerCase()));
+    const B = new Set(getHabitsFromUser(user).map(s=>String(s).toLowerCase()));
+    if (!A.size || !B.size) return 80; // neutral when no data
+    let overlap = 0; B.forEach(x => { if (A.has(x)) overlap++; });
+    const score = Math.round((overlap / Math.max(A.size, B.size)) * 100);
+    return Math.max(0, Math.min(100, score));
+  }
+
+  function createMateCard(user, matchPercent){
+    const uHabits = getHabitsFromUser(user);
+    const ini = initialsFrom(user.username || user.email);
+
+    const card = document.createElement('div');
+    card.className = 'card-item';
+    card.style.border = '1px solid rgba(37, 99, 235, 0.2)';
+    card.innerHTML =
+      '<div class="flex items-center" style="margin-bottom:1rem; gap:1rem;">' +
+        '<div style="width:4rem;height:4rem;border-radius:9999px;border:2px solid var(--primary);' +
+                  'background-color:var(--primary);color:#fff;display:flex;align-items:center;' +
+                  'justify-content:center;font-weight:700;font-size:1.25rem;">' + ini + '</div>' +
+        '<div>' +
+          '<h3 style="margin:0 0 .125rem;">' + (user.username || 'User') + ' (' + matchPercent + '% Match)</h3>' +
+          '<p style="font-size:.875rem;color:var(--secondary);font-weight:500;">Verified User</p>' +
+        '</div>' +
+      '</div>' +
+      '<p style="color:var(--gray-600);margin-bottom:1rem;font-size:.9rem;">' +
+        (user.bio || '“EzMate member.”') + '</p>' +
+      '<div class="mate-tags" style="display:flex;flex-wrap:wrap;gap:.5rem;font-size:.875rem;"></div>' +
+      '<button class="mate-btn rounded-lg shadow-md" type="button">View Profile</button>';
+
+    const tagWrap = card.querySelector('.mate-tags');
+    tagWrap.innerHTML = '';
+    (uHabits.length ? uHabits.slice(0,6) : ['No habits set']).forEach(txt => {
+      const span = document.createElement('span');
+      span.className = 'mate-tag';
+      span.textContent = String(txt);
+      tagWrap.appendChild(span);
+    });
+
+    return card;
+  }
+
+  // Parse exact matches from roommates.html
+  async function getRoommatesMatchMap(){
+    try {
+      const res = await fetch('roommates.html', { cache: 'no-store' });
+      if (!res.ok) throw new Error('fetch failed');
+      const html = await res.text();
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const map = {};
+      doc.querySelectorAll('.card').forEach(card => {
+        const nameEl = card.querySelector('.name');
+        const matchEl = card.querySelector('.match');
+        if (!nameEl || !matchEl) return;
+        const name = nameEl.textContent.trim().toLowerCase();
+        const m = matchEl.textContent.match(/(\d+)\s*%/);
+        if (name && m) map[name] = parseInt(m[1], 10);
+      });
+      // if nothing parsed, fall back
+      if (Object.keys(map).length === 0) return { ...FALLBACK_MATCH };
+      return map;
+    } catch {
+      return { ...FALLBACK_MATCH };
+    }
+  }
+
+  function normalizedName(u){
+    return String(u.username || u.name || '')
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g,' ')
+  }
+
+  async function render(){
+    const grid = document.querySelector('#potential-mates .card-grid');
+    if (!grid) return;
+
+    const me = loadSession();
+    const users = loadUsers();
+    const meEmail = me && me.email ? String(me.email).toLowerCase() : '';
+    const others = users.filter(u => String(u.email||'').toLowerCase() !== meEmail);
+    const meHabits = getHabitsFromUser(me);
+
+    // Get exact map from roommates.html (or fallback)
+    const MATCH_MAP = await getRoommatesMatchMap();
+
+    // Source data: real users or demo
+    const source = others.length ? others : DEMO;
+
+    grid.innerHTML = '';
+    source.slice(0,6).forEach(u => {
+      let match;
+      // If the user already carries a match number, honor it
+      if (typeof u.match === 'number') match = Math.round(u.match);
+      else if (typeof u.matchScore === 'number') match = Math.round(u.matchScore);
+      else if (typeof u.compatibility === 'number') match = Math.round(u.compatibility);
+      else {
+        // Try to mirror roommates.html exact value for demo names
+        const key = normalizedName(u);
+        match = MATCH_MAP[key];
+        // If not a known demo, compute overlap (no artificial 60% floor)
+        if (typeof match !== 'number') match = computeOverlapMatch(u, meHabits);
+      }
+      grid.appendChild(createMateCard(u, match));
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', render);
+  } else {
+    render();
+  }
+})();
+</script>
+
+</body>
+</html>

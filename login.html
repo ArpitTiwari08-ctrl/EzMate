@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>EzMate | Sign Up / Log In</title>
+  <style>
+    :root {
+      --primary:#2563EB; --secondary:#10B981; --background:#F7F9FC; --card-bg:#FFFFFF;
+      --gray-900:#111827; --gray-700:#374151; --gray-500:#6B7280;
+      --shadow-xl:0 20px 25px -5px rgba(0,0,0,.1),0 10px 10px -5px rgba(0,0,0,.04);
+    }
+    body{font-family:'Inter',sans-serif;background-color:var(--background);color:var(--gray-700);
+      display:flex;justify-content:center;align-items:center;min-height:100vh;margin:0;padding:1rem;}
+    .auth-container{width:100%;max-width:28rem;background-color:var(--card-bg);border-radius:1rem;
+      padding:2.5rem;box-shadow:var(--shadow-xl);border-top:5px solid var(--primary);animation:fadeIn .5s ease-out;}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+    h1{color:var(--gray-900);font-size:1.875rem;font-weight:800;margin-bottom:.5rem;}
+    p.subtitle{color:var(--gray-500);margin-bottom:2rem;font-size:1rem;}
+    label{display:block;font-size:.875rem;font-weight:600;margin-bottom:.5rem;color:var(--gray-700);}
+    input[type="text"],input[type="email"],input[type="password"],input[type="tel"],input[type="number"]{
+      width:100%;padding:.75rem 1rem;border:1px solid #D1D5DB;border-radius:.5rem;margin-bottom:1.0rem;
+      outline:none;transition:border-color .3s,box-shadow .3s;}
+    input:focus{border-color:var(--primary);box-shadow:0 0 0 3px rgba(37,99,235,.3);}
+    .btn-submit{width:100%;background-color:var(--primary);color:#fff;font-weight:700;padding:.75rem 1rem;
+      border-radius:.5rem;border:none;cursor:pointer;transition:background-color .3s,transform .1s;}
+    .btn-submit:hover{background-color:#1D4ED8;transform:translateY(-1px);}
+    .btn-toggle{color:var(--primary);font-weight:600;cursor:pointer;text-decoration:none;transition:color .3s;}
+    .btn-toggle:hover{color:#1D4ED8;text-decoration:underline;}
+    .text-center{text-align:center;} .hidden{display:none;}
+    .row{display:flex;gap:.5rem;align-items:center;}
+    .row > *{flex:1}
+    .muted{font-size:.8rem;color:var(--gray-500);margin-top:-.25rem;margin-bottom:.5rem}
+    .btn-small{padding:.6rem .8rem;border-radius:.5rem;border:1px solid #D1D5DB;background:#F9FAFB;cursor:pointer}
+    .btn-small[disabled]{opacity:.6;cursor:not-allowed}
+    .otp-ok{color:var(--secondary);font-weight:700}
+
+    /* Habits modal */
+    .modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.35);z-index:50}
+    .modal.show{display:flex}
+    .modal-card{background:#fff;border-radius:14px;border:1px solid #e5e7eb;max-width:640px;width:94%;padding:18px 18px 16px;box-shadow:var(--shadow-xl)}
+    .modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+    .modal-title{font-weight:800;margin:0;font-size:1.1rem}
+    .modal-close{border:none;background:transparent;font-size:1.2rem;cursor:pointer;padding:.25rem .4rem;border-radius:8px}
+    .modal-close:hover{background:#f3f4f6}
+    .habits-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0 8px}
+    @media (min-width:560px){ .habits-grid{grid-template-columns:repeat(3,1fr)} }
+    .habit{display:flex;gap:8px;align-items:center;border:1px solid #e5e7eb;background:#fff;border-radius:10px;padding:.55rem .65rem}
+    .modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:8px}
+    .btn{border:1px solid #e5e7eb;background:#fff;padding:.6rem .9rem;border-radius:10px;font-weight:700;cursor:pointer}
+    .btn.primary{background:var(--primary);border-color:var(--primary);color:#fff}
+    .btn.primary[disabled]{opacity:.65;cursor:not-allowed}
+    .small-muted{font-size:.85rem;color:#6b7280;margin-top:.35rem}
+  </style>
+</head>
+<body>
+  <div class="auth-container">
+    <header class="text-center">
+      <a href="index.html" style="text-decoration:none;">
+        <span style="font-size:2.25rem;font-weight:800;color:var(--primary);">EzMate</span>
+      </a>
+      <h1 id="auth-title">Create Your Account</h1>
+      <p class="subtitle" id="auth-subtitle">Start matching with perfect roommates today.</p>
+    </header>
+
+    <!-- Sign Up Form (Default View) -->
+    <form id="signup-form">
+      <label for="signup-username">Username</label>
+      <input type="text" id="signup-username" placeholder="john_doe" required>
+
+      <label for="signup-email">Email address</label>
+      <input type="email" id="signup-email" placeholder="you@student.com" required>
+
+      <!-- Phone + OTP (Sign Up) -->
+      <label for="signup-phone">Phone number</label>
+      <input
+        type="tel"
+        id="signup-phone"
+        placeholder="10-digit phone"
+        inputmode="numeric"
+        pattern="^\d{10}$"
+        maxlength="10"
+        required
+      >
+
+      <div id="signup-otp-wrap" class="hidden">
+        <div class="row">
+          <input type="number" id="signup-otp" placeholder="Enter 6-digit OTP" inputmode="numeric" maxlength="6">
+          <button type="button" class="btn-small" id="signup-send-otp">Resend OTP</button>
+          <button type="button" class="btn-small" id="signup-verify-otp">Verify</button>
+        </div>
+        <div class="muted" id="signup-otp-status">OTP sent. Expires in <span id="signup-otp-timer">03:00</span>.</div>
+      </div>
+
+      <label for="signup-password">Password</label>
+      <input type="password" id="signup-password" placeholder="••••••••" required>
+
+      <button type="submit" class="btn-submit">Sign Up</button>
+    </form>
+
+    <!-- Log In Form (Hidden by Default) -->
+    <form id="login-form" class="hidden">
+      <label for="login-email">Email address</label>
+      <input type="email" id="login-email" placeholder="you@student.com" required>
+
+      <label for="login-phone">Phone number</label>
+      <input
+        type="tel"
+        id="login-phone"
+        placeholder="10-digit phone"
+        inputmode="numeric"
+        pattern="^\d{10}$"
+        maxlength="10"
+        required
+      >
+
+      <div id="login-otp-wrap" class="hidden">
+        <div class="row">
+          <input type="number" id="login-otp" placeholder="Enter 6-digit OTP" inputmode="numeric" maxlength="6">
+          <button type="button" class="btn-small" id="login-send-otp">Resend OTP</button>
+          <button type="button" class="btn-small" id="login-verify-otp">Verify</button>
+        </div>
+        <div class="muted" id="login-otp-status">OTP sent. Expires in <span id="login-otp-timer">03:00</span>.</div>
+      </div>
+
+      <label for="login-password">Password</label>
+      <input type="password" id="login-password" placeholder="••••••••" required>
+
+      <button type="submit" class="btn-submit">Log In</button>
+    </form>
+
+    <!-- Toggle -->
+    <div class="text-center" style="margin-top:1.5rem;font-size:.875rem;">
+      <p id="toggle-text">Already have an account?
+        <a href="#" class="btn-toggle" onclick="toggleForm(event)">Log In</a>
+      </p>
+    </div>
+
+    <!-- Message Box -->
+    <div id="message-box" style="position:fixed;top:1rem;right:1rem;background-color:var(--secondary);
+      color:#fff;padding:1rem;border-radius:.5rem;box-shadow:0 4px 10px rgba(0,0,0,.2);
+      transition:opacity .3s;opacity:0;z-index:100;">Message</div>
+  </div>
+
+  <!-- HABITS MODAL (mandatory at sign-up) -->
+  <div class="modal" id="habits-modal" role="dialog" aria-modal="true" aria-labelledby="habits-title">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3 id="habits-title" class="modal-title">Tell us about your habits</h3>
+        <button type="button" class="modal-close" id="habits-close" aria-label="Close">&times;</button>
+      </div>
+      <p class="small-muted">Pick at least <strong>3</strong>. These improve your compatibility matches.</p>
+      <div id="habits-grid" class="habits-grid"><!-- injected --></div>
+      <div class="modal-actions">
+        <button type="button" class="btn" id="habits-cancel">Cancel</button>
+        <button type="button" class="btn primary" id="habits-save" disabled>Save & Continue</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ===== Keys =====
+    const USERS_KEY = 'ezmate_users';
+    const SESSION_KEY = 'ezmate_current_user';
+    const OTP_KEY = 'ezmate_otps';
+
+    // ===== Habits master list (can be reused by other pages if needed) =====
+    const HABITS = [
+      'Morning person','Night owl','Very clean','Tidy','Budget matched','Loves cooking','Meal prep',
+      'Work from home','Quiet lifestyle','Moderately social','Plant lover','Hiker','Minimalist','Gym',
+      'Pet lover','Coffee friendly','Focus nights','On-time rent','Non-smoker','Smoker (balcony only)'
+    ];
+
+    // ===== Elements =====
+    const signupForm = document.getElementById('signup-form');
+    const loginForm  = document.getElementById('login-form');
+    const authTitle  = document.getElementById('auth-title');
+    const authSubtitle = document.getElementById('auth-subtitle');
+    const toggleText = document.getElementById('toggle-text');
+    const messageBox = document.getElementById('message-box');
+
+    // signup refs
+    const suPhone = document.getElementById('signup-phone');
+    const suOtpWrap = document.getElementById('signup-otp-wrap');
+    const suOtpInput = document.getElementById('signup-otp');
+    const suSendBtn = document.getElementById('signup-send-otp');
+    const suVerifyBtn = document.getElementById('signup-verify-otp');
+    const suTimer = document.getElementById('signup-otp-timer');
+    const suStatus = document.getElementById('signup-otp-status');
+
+    // login refs
+    const liPhone = document.getElementById('login-phone');
+    const liOtpWrap = document.getElementById('login-otp-wrap');
+    const liOtpInput = document.getElementById('login-otp');
+    const liSendBtn = document.getElementById('login-send-otp');
+    const liVerifyBtn = document.getElementById('login-verify-otp');
+    const liTimer = document.getElementById('login-otp-timer');
+    const liStatus = document.getElementById('login-otp-status');
+
+    // Habits modal refs
+    const habitsModal = document.getElementById('habits-modal');
+    const habitsGrid  = document.getElementById('habits-grid');
+    const habitsSave  = document.getElementById('habits-save');
+    const habitsCancel= document.getElementById('habits-cancel');
+    const habitsClose = document.getElementById('habits-close');
+
+    // ===== UI helpers =====
+    function showMessage(msg, ok = true) {
+      messageBox.textContent = msg;
+      messageBox.style.backgroundColor = ok ? 'var(--secondary)' : '#ef4444';
+      messageBox.style.opacity = '1';
+      setTimeout(() => messageBox.style.opacity = '0', 3000);
+    }
+
+    function toggleForm(event) {
+      event.preventDefault();
+      const showingSignup = !signupForm.classList.contains('hidden');
+      if (showingSignup) {
+        signupForm.classList.add('hidden');
+        loginForm.classList.remove('hidden');
+        authTitle.textContent = 'Welcome Back';
+        authSubtitle.textContent = 'Log in to view your matches.';
+        toggleText.innerHTML = "Don't have an account? <a href='#' class='btn-toggle' onclick='toggleForm(event)'>Sign Up</a>";
+      } else {
+        loginForm.classList.add('hidden');
+        signupForm.classList.remove('hidden');
+        authTitle.textContent = 'Create Your Account';
+        authSubtitle.textContent = 'Start matching with perfect roommates today.';
+        toggleText.innerHTML = "Already have an account? <a href='#' class='btn-toggle' onclick='toggleForm(event)'>Log In</a>";
+      }
+    }
+    window.toggleForm = toggleForm;
+
+    // ===== Storage helpers =====
+    function loadUsers() {
+      try { return JSON.parse(localStorage.getItem(USERS_KEY)) || []; }
+      catch { return []; }
+    }
+    function saveUsers(users) {
+      localStorage.setItem(USERS_KEY, JSON.stringify(users));
+    }
+    function setSession(user) {
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify({ ...user, at: Date.now() }));
+    }
+    function getSession() {
+      try { return JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null'); } catch { return null; }
+    }
+
+    // ===== Crypto (salt + SHA-256) =====
+    function randBytes(len = 16) {
+      const arr = new Uint8Array(len);
+      crypto.getRandomValues(arr);
+      return arr;
+    }
+    function toB64(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))); }
+    function fromB64(b64) {
+      const bin = atob(b64);
+      const arr = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      return arr.buffer;
+    }
+    async function sha256(bytesOrStr) {
+      const data = typeof bytesOrStr === 'string' ? new TextEncoder().encode(bytesOrStr) : bytesOrStr;
+      const hash = await crypto.subtle.digest('SHA-256', data);
+      return new Uint8Array(hash);
+    }
+    async function hashPassword(password, saltB64) {
+      const salt = new Uint8Array(fromB64(saltB64));
+      const pwd = new TextEncoder().encode(password);
+      const combined = new Uint8Array(salt.length + pwd.length);
+      combined.set(salt, 0); combined.set(pwd, salt.length);
+      const digest = await sha256(combined);
+      return toB64(digest.buffer);
+    }
+
+    // ===== OTP helpers =====
+    let signupOtpVerified = false;
+    let loginOtpVerified = false;
+
+    const OTP_EXP_MS = 3*60*1000;   // 3 minutes
+    const RESEND_COOLDOWN = 30;     // seconds
+
+    function getOtpStore(){
+      try { return JSON.parse(sessionStorage.getItem(OTP_KEY)) || {}; }
+      catch { return {}; }
+    }
+    function setOtpStore(obj){
+      sessionStorage.setItem(OTP_KEY, JSON.stringify(obj));
+    }
+    function genOtp(){
+      return String(Math.floor(100000 + Math.random()*900000)); // 6 digits
+    }
+    function startTimer(timerEl, btn, expiresAt){
+      let iv = setInterval(()=>{
+        const left = Math.max(0, expiresAt - Date.now());
+        const mm = String(Math.floor(left/60000)).padStart(2,'0');
+        const ss = String(Math.floor((left%60000)/1000)).padStart(2,'0');
+        timerEl.textContent = `${mm}:${ss}`;
+        if(left<=0){ clearInterval(iv); }
+      }, 250);
+
+      let cd = RESEND_COOLDOWN;
+      btn.disabled = true;
+      btn.textContent = `Resend (${cd})`;
+      const cdIv = setInterval(()=>{
+        cd--;
+        btn.textContent = cd>0 ? `Resend (${cd})` : 'Resend OTP';
+        if(cd<=0){ btn.disabled = false; clearInterval(cdIv); }
+      },1000);
+    }
+    function sendOtp(flow, phone){
+      const store = getOtpStore();
+      const code = genOtp();
+      const expiresAt = Date.now() + OTP_EXP_MS;
+      store[flow] = { phone, code, expiresAt };
+      setOtpStore(store);
+
+      console.log(`[EzMate/${flow}] OTP for ${phone}: ${code}`);
+      showMessage(`OTP sent to +91 ${phone}. (Demo: ${code})`);
+
+      if(flow==='signup'){
+        suOtpWrap.classList.remove('hidden');
+        suStatus.innerHTML = `OTP sent. Expires in <span id="signup-otp-timer">03:00</span>.`;
+        suTimer.textContent = '03:00';
+        startTimer(suTimer, suSendBtn, expiresAt);
+      } else {
+        liOtpWrap.classList.remove('hidden');
+        liStatus.innerHTML = `OTP sent. Expires in <span id="login-otp-timer">03:00</span>.`;
+        liTimer.textContent = '03:00';
+        startTimer(liTimer, liSendBtn, expiresAt);
+      }
+    }
+    function verifyOtp(flow, phone, inputCode){
+      const store = getOtpStore();
+      const record = store[flow];
+      if(!record){ showMessage('No OTP requested yet.', false); return false; }
+      if(record.phone !== phone){ showMessage('Phone changed. Please resend OTP.', false); return false; }
+      if(Date.now() > record.expiresAt){ showMessage('OTP expired. Please resend.', false); return false; }
+      if(String(inputCode).trim() !== record.code){ showMessage('Invalid OTP.', false); return false; }
+      if(flow==='signup'){ signupOtpVerified = true; suStatus.innerHTML = '<span class="otp-ok">OTP verified ✓</span>'; }
+      else { loginOtpVerified = true; liStatus.innerHTML = '<span class="otp-ok">OTP verified ✓</span>'; }
+      showMessage('OTP verified!');
+      return true;
+    }
+    function normalizePhone(v){ return (v||'').replace(/\D/g,'').slice(-10); }
+
+    // ===== Habits modal rendering =====
+    function renderHabitsChecklist() {
+      habitsGrid.innerHTML = HABITS.map((h, i) => `
+        <label class="habit">
+          <input type="checkbox" value="${h}" id="habit-${i}">
+          <span>${h}</span>
+        </label>
+      `).join('');
+    }
+    function getSelectedHabits() {
+      return Array.from(habitsGrid.querySelectorAll('input[type="checkbox"]:checked')).map(i => i.value);
+    }
+    function validateHabits() {
+      const selected = getSelectedHabits();
+      habitsSave.disabled = selected.length < 3; // mandatory min 3
+    }
+
+    habitsGrid?.addEventListener('change', validateHabits);
+    habitsCancel?.addEventListener('click', ()=>{ /* force completion */ validateHabits(); });
+    habitsClose?.addEventListener('click', ()=>{ /* force completion */ validateHabits(); });
+
+    // ===== Sign Up =====
+    async function handleSignup(email, password, username, phone) {
+      const users = loadUsers();
+
+      if (!username || username.length < 3) { showMessage('Username must be at least 3 characters.', false); return; }
+      const phoneRaw = normalizePhone(phone);
+      if (phoneRaw.length !== 10) { showMessage('Enter a valid 10-digit phone number.', false); return; }
+      if (!signupOtpVerified) { showMessage('Please verify the OTP sent to your phone.', false); return; }
+      if (users.some(u => (u.username||'').toLowerCase() === username.toLowerCase())) {
+        showMessage('Username already taken. Choose another.', false); return;
+      }
+      if (users.some(u => u.email.toLowerCase() === email.toLowerCase())) {
+        showMessage('Account already exists with this email. Please log in.', false); return;
+      }
+      if (password.length < 8) { showMessage('Password must be at least 8 characters.', false); return; }
+
+      const saltB64 = toB64(randBytes(16));
+      const hashB64 = await hashPassword(password, saltB64);
+
+      const newUser = {
+        email, username, phone: phoneRaw, salt: saltB64, hash: hashB64,
+        createdAt: new Date().toISOString(),
+        habits: [] // will be set via modal
+      };
+      users.push(newUser);
+      saveUsers(users);
+      setSession({ email, username });
+
+      // Open habits modal (mandatory) before redirect
+      renderHabitsChecklist();
+      habitsSave.disabled = true;
+      habitsModal.classList.add('show');
+
+      habitsSave.onclick = () => {
+        const selected = getSelectedHabits();
+        if (selected.length < 3) { validateHabits(); return; }
+        // persist habits into the just-created user
+        const all = loadUsers();
+        const idx = all.findIndex(u => u.email.toLowerCase() === email.toLowerCase());
+        if (idx !== -1) {
+          all[idx].habits = selected;
+          saveUsers(all);
+          setSession({ email: all[idx].email, username: all[idx].username, habits: selected });
+        }
+        showMessage('Profile habits saved! Redirecting...');
+        setTimeout(() => window.location.href = 'index.html', 900);
+      };
+    }
+
+    // ===== Log In =====
+    async function handleLogin(email, password, phone) {
+      const users = loadUsers();
+      const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+      if (!user) { showMessage('No account found. Try Sign Up.', false); return; }
+
+      const phoneRaw = normalizePhone(phone);
+      if (phoneRaw.length !== 10) { showMessage('Enter a valid 10-digit phone number.', false); return; }
+      if (user.phone && user.phone !== phoneRaw) { showMessage('Phone number does not match this account.', false); return; }
+      if (!loginOtpVerified) { showMessage('Please verify the OTP sent to your phone.', false); return; }
+
+      const computed = await hashPassword(password, user.salt);
+      if (computed !== user.hash) { showMessage('Incorrect password.', false); return; }
+      setSession({ email: user.email, username: user.username, habits: user.habits || [] });
+      showMessage('Log In successful! Redirecting...');
+      setTimeout(() => window.location.href = 'index.html', 1200);
+    }
+
+    // ===== Wire up forms =====
+    function getFormValues(formEl) {
+      const email = formEl.querySelector('input[type="email"]').value.trim();
+      const password = formEl.querySelector('input[type="password"]').value;
+      const usernameEl = formEl.querySelector('#signup-username');
+      const phoneEl = formEl.querySelector('#signup-phone') || formEl.querySelector('#login-phone');
+      const username = usernameEl ? usernameEl.value.trim() : null;
+      const phone = phoneEl ? phoneEl.value.trim() : null;
+      return { email, password, username, phone };
+    }
+
+    // Show OTP section automatically when phone reaches 10 digits (signup)
+    suPhone.addEventListener('input', ()=>{
+      signupOtpVerified = false;
+      const p = normalizePhone(suPhone.value);
+      if(p.length===10){
+        suOtpWrap.classList.remove('hidden');
+        sendOtp('signup', p);
+        setTimeout(()=>document.getElementById('signup-otp').focus(), 50);
+      } else {
+        suOtpWrap.classList.add('hidden');
+      }
+    });
+
+    // Show OTP section automatically when phone reaches 10 digits (login)
+    liPhone.addEventListener('input', ()=>{
+      loginOtpVerified = false;
+      const p = normalizePhone(liPhone.value);
+      if(p.length===10){
+        liOtpWrap.classList.remove('hidden');
+        sendOtp('login', p);
+        setTimeout(()=>document.getElementById('login-otp').focus(), 50);
+      } else {
+        liOtpWrap.classList.add('hidden');
+      }
+    });
+
+    // Resend + Verify buttons (signup)
+    suSendBtn.addEventListener('click', ()=>{
+      const p = normalizePhone(suPhone.value);
+      if(p.length!==10){ showMessage('Enter a valid 10-digit phone number.', false); return; }
+      signupOtpVerified = false;
+      sendOtp('signup', p);
+    });
+    suVerifyBtn.addEventListener('click', ()=>{
+      const p = normalizePhone(suPhone.value);
+      verifyOtp('signup', p, suOtpInput.value);
+    });
+
+    // Resend + Verify buttons (login)
+    liSendBtn.addEventListener('click', ()=>{
+      const p = normalizePhone(liPhone.value);
+      if(p.length!==10){ showMessage('Enter a valid 10-digit phone number.', false); return; }
+      loginOtpVerified = false;
+      sendOtp('login', p);
+    });
+    liVerifyBtn.addEventListener('click', ()=>{
+      const p = normalizePhone(liPhone.value);
+      verifyOtp('login', p, liOtpInput.value);
+    });
+
+    // Submit handlers
+    signupForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const { email, password, username, phone } = getFormValues(e.target);
+      await handleSignup(email, password, username, phone);
+      e.target.reset();
+      signupOtpVerified = false;
+      suOtpWrap.classList.add('hidden');
+    });
+
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const { email, password, phone } = getFormValues(e.target);
+      await handleLogin(email, password, phone);
+      e.target.reset();
+      loginOtpVerified = false;
+      liOtpWrap.classList.add('hidden');
+    });
+
+    // Optional global logout helper for other pages
+    window.ezmateLogout = function () {
+      sessionStorage.removeItem(SESSION_KEY);
+      window.location.href = 'login.html';
+    };
+
+    // Prepare habits modal validation
+    document.addEventListener('DOMContentLoaded', () => {
+      renderHabitsChecklist();
+      validateHabits();
+    });
+  </script>
+</body>
+</html>
