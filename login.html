@@ -163,8 +163,10 @@
     const USERS_KEY = 'ezmate_users';
     const SESSION_KEY = 'ezmate_current_user';
     const OTP_KEY = 'ezmate_otps';
+    // ===== SheetBest endpoint =====
+    const SHEETBEST_URL = 'https://api.sheetbest.com/sheets/578f6242-bd5a-4373-8096-2a7c7c6bae62';
 
-    // ===== Habits master list (can be reused by other pages if needed) =====
+    // ===== Habits master list =====
     const HABITS = [
       'Morning person','Night owl','Very clean','Tidy','Budget matched','Loves cooking','Meal prep',
       'Work from home','Quiet lifestyle','Moderately social','Plant lover','Hiker','Minimalist','Gym',
@@ -246,6 +248,48 @@
       try { return JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null'); } catch { return null; }
     }
 
+    // ===== SheetBest helpers (minimal) =====
+    function parseHabitsField(val){
+      if (!val) return [];
+      if (Array.isArray(val)) return val.filter(Boolean).map(String);
+      if (typeof val === 'string') {
+        try { const arr = JSON.parse(val); if (Array.isArray(arr)) return arr.filter(Boolean).map(String); } catch {}
+        return val.split(',').map(s=>s.trim()).filter(Boolean);
+      }
+      return [];
+    }
+    async function fetchAllUsersFromSheet(){
+      try{
+        const res = await fetch(SHEETBEST_URL, { cache: 'no-store' });
+        if(!res.ok) throw new Error('sheet fetch failed');
+        const rows = await res.json();
+        return (Array.isArray(rows) ? rows : []).map(r => ({
+          email: (r.email||'').trim(),
+          username: (r.username||'').trim() || (r.email||'').split('@')[0],
+          phone: (r.phone||'').trim(),
+          salt: r.salt||'',
+          hash: r.hash||'',
+          habits: parseHabitsField(r.habits),
+          bio: r.bio||'',
+          role: r.role||'Verified User',
+          avatarUrl: r.avatarUrl||'',
+          createdAt: r.createdAt||''
+        })).filter(u=>u.email);
+      }catch(e){
+        return null; // signal network failure
+      }
+    }
+    async function postUserToSheet(row){
+      try{
+        const res = await fetch(SHEETBEST_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(row)
+        });
+        return res.ok;
+      }catch(e){ return false; }
+    }
+
     // ===== Crypto (salt + SHA-256) =====
     function randBytes(len = 16) {
       const arr = new Uint8Array(len);
@@ -273,7 +317,7 @@
       return toB64(digest.buffer);
     }
 
-    // ===== OTP helpers =====
+    // ===== OTP helpers (demo) =====
     let signupOtpVerified = false;
     let loginOtpVerified = false;
 
@@ -365,7 +409,7 @@
     habitsCancel?.addEventListener('click', ()=>{ /* force completion */ validateHabits(); });
     habitsClose?.addEventListener('click', ()=>{ /* force completion */ validateHabits(); });
 
-    // ===== Sign Up =====
+    // ===== Sign Up (SheetBest as source of truth) =====
     async function handleSignup(email, password, username, phone) {
       const users = loadUsers();
 
@@ -373,17 +417,23 @@
       const phoneRaw = normalizePhone(phone);
       if (phoneRaw.length !== 10) { showMessage('Enter a valid 10-digit phone number.', false); return; }
       if (!signupOtpVerified) { showMessage('Please verify the OTP sent to your phone.', false); return; }
-      if (users.some(u => (u.username||'').toLowerCase() === username.toLowerCase())) {
+
+      // Check duplicates against shared sheet (preferred), else local fallback
+      const sheetUsers = await fetchAllUsersFromSheet();
+      const allForDupCheck = sheetUsers || users;
+      if (allForDupCheck.some(u => (u.username||'').toLowerCase() === username.toLowerCase())) {
         showMessage('Username already taken. Choose another.', false); return;
       }
-      if (users.some(u => u.email.toLowerCase() === email.toLowerCase())) {
+      if (allForDupCheck.some(u => u.email.toLowerCase() === email.toLowerCase())) {
         showMessage('Account already exists with this email. Please log in.', false); return;
       }
       if (password.length < 8) { showMessage('Password must be at least 8 characters.', false); return; }
 
+      // Prepare creds (but DO NOT post yet; we’ll wait for habits)
       const saltB64 = toB64(randBytes(16));
       const hashB64 = await hashPassword(password, saltB64);
 
+      // Temp local user (so modal shows correct name)
       const newUser = {
         email, username, phone: phoneRaw, salt: saltB64, hash: hashB64,
         createdAt: new Date().toISOString(),
@@ -393,15 +443,16 @@
       saveUsers(users);
       setSession({ email, username });
 
-      // Open habits modal (mandatory) before redirect
+      // Open habits modal (mandatory) before posting to SheetBest + redirect
       renderHabitsChecklist();
       habitsSave.disabled = true;
       habitsModal.classList.add('show');
 
-      habitsSave.onclick = () => {
+      habitsSave.onclick = async () => {
         const selected = getSelectedHabits();
         if (selected.length < 3) { validateHabits(); return; }
-        // persist habits into the just-created user
+
+        // Persist habits in local cache
         const all = loadUsers();
         const idx = all.findIndex(u => u.email.toLowerCase() === email.toLowerCase());
         if (idx !== -1) {
@@ -409,24 +460,58 @@
           saveUsers(all);
           setSession({ email: all[idx].email, username: all[idx].username, habits: selected });
         }
-        showMessage('Profile habits saved! Redirecting...');
+
+        // Compose one clean row and POST to SheetBest
+        const row = {
+          email,
+          username,
+          phone: phoneRaw,
+          salt: saltB64,
+          hash: hashB64,
+          habits: JSON.stringify(selected),
+          bio: '',
+          role: 'Verified User',
+          avatarUrl: '',
+          createdAt: new Date().toISOString()
+        };
+        const ok = await postUserToSheet(row);
+        if (!ok) {
+          showMessage('Saved locally (network issue). Will still work, but shared list may lag.', false);
+        } else {
+          showMessage('Profile saved! (Shared)');
+        }
+
         setTimeout(() => window.location.href = 'index.html', 900);
       };
     }
 
-    // ===== Log In =====
+    // ===== Log In (read from SheetBest; fallback to local) =====
     async function handleLogin(email, password, phone) {
-      const users = loadUsers();
+      const phoneRaw = normalizePhone(phone);
+      if (phoneRaw.length !== 10) { showMessage('Enter a valid 10-digit phone number.', false); return; }
+      if (!loginOtpVerified) { showMessage('Please verify the OTP sent to your phone.', false); return; }
+
+      // Prefer shared sheet
+      let users = await fetchAllUsersFromSheet();
+      if (!users) {
+        // fallback to local cache
+        users = loadUsers();
+        showMessage('Working offline (using local data).', false);
+      } else {
+        // also refresh local cache for other pages
+        try {
+          localStorage.setItem(USERS_KEY, JSON.stringify(users));
+        } catch {}
+      }
+
       const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
       if (!user) { showMessage('No account found. Try Sign Up.', false); return; }
 
-      const phoneRaw = normalizePhone(phone);
-      if (phoneRaw.length !== 10) { showMessage('Enter a valid 10-digit phone number.', false); return; }
       if (user.phone && user.phone !== phoneRaw) { showMessage('Phone number does not match this account.', false); return; }
-      if (!loginOtpVerified) { showMessage('Please verify the OTP sent to your phone.', false); return; }
 
       const computed = await hashPassword(password, user.salt);
       if (computed !== user.hash) { showMessage('Incorrect password.', false); return; }
+
       setSession({ email: user.email, username: user.username, habits: user.habits || [] });
       showMessage('Log In successful! Redirecting...');
       setTimeout(() => window.location.href = 'index.html', 1200);
