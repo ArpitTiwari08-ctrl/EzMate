@@ -871,14 +871,14 @@
 
 <a class="fab-mates" href="roommates.html" aria-label="Open Meet Mates">Meet Mates</a>
 
-<!-- Profile habits + home users (kept) -->
+<!-- Profile habits + home users (kept) — UPDATED to prefer remote window.loadUsers and re-render on refresh -->
 <script>
-/* ===== EZMATE: Habits in profile + real users on home (minimal, non-destructive) ===== */
+/* ===== EZMATE: Habits in profile + real users on home (remote-first) ===== */
 (function () {
   const USERS_KEY = 'ezmate_users';
   const SESSION_KEY = 'ezmate_current_user';
 
-  function loadUsers() {
+  function localLoadUsers() {
     try { const v = JSON.parse(localStorage.getItem(USERS_KEY)); return Array.isArray(v) ? v : []; }
     catch { return []; }
   }
@@ -1011,10 +1011,19 @@
     const grid = document.querySelector('#potential-mates .card-grid');
     if (!grid) return;
 
-    const users = loadUsers(); // (this may be overridden by remote-first layer below)
+    // Prefer remote window.loadUsers() if present; otherwise use local cache
+    let users = [];
+    try {
+      if (typeof window.loadUsers === 'function') {
+        users = await window.loadUsers();
+      } else {
+        users = localLoadUsers();
+      }
+    } catch { users = localLoadUsers(); }
+
     const me = (function(){ try{return JSON.parse(sessionStorage.getItem('ezmate_current_user')||'null')}catch{return null} })();
     const meEmail = (me && me.email) ? String(me.email).toLowerCase() : null;
-    const others = users.filter(u => {
+    const others = (users || []).filter(u => {
       const e = (u && u.email) ? String(u.email).toLowerCase() : '';
       return !meEmail || e !== meEmail;
     });
@@ -1026,12 +1035,14 @@
   }
 
   document.addEventListener('DOMContentLoaded', renderHomeUsers);
+  // Re-render when remote layer refreshes users
+  window.addEventListener('users-refreshed', renderHomeUsers);
 })();
 </script>
 
-<!-- Second pass (kept) that syncs exact demo % if needed -->
+<!-- Second pass (kept) — UPDATED to use remote window.loadUsers and re-render on refresh -->
 <script>
-/* EzMate Home — Make "Potential Mates" match % exactly mirror roommates.html where applicable */
+/* EzMate Home — Mirror roommates.html match % where applicable (remote-first) */
 (function(){
   const USERS_KEY = 'ezmate_users';
   const SESSION_KEY = 'ezmate_current_user';
@@ -1052,7 +1063,7 @@
     { username:'Omar H.', email:'omar@example.com', bio:'Barista + CS student; focus nights.', habits:['Coffee friendly','Focus nights'] }
   ];
 
-  function loadUsers(){ try { return JSON.parse(localStorage.getItem(USERS_KEY))||[]; } catch { return []; } }
+  function localLoadUsers(){ try { return JSON.parse(localStorage.getItem(USERS_KEY))||[]; } catch { return []; } }
   function loadSession(){ try { return JSON.parse(sessionStorage.getItem(SESSION_KEY)||'null'); } catch { return null; } }
 
   function getHabitsFromUser(u){
@@ -1147,10 +1158,19 @@
     const grid = document.querySelector('#potential-mates .card-grid');
     if (!grid) return;
 
+    // Prefer remote window.loadUsers, fall back to local
+    let users = [];
+    try {
+      if (typeof window.loadUsers === 'function') {
+        users = await window.loadUsers();
+      } else {
+        users = localLoadUsers();
+      }
+    } catch { users = localLoadUsers(); }
+
     const me = loadSession();
-    const users = loadUsers();
     const meEmail = me && me.email ? String(me.email).toLowerCase() : '';
-    const others = users.filter(u => String(u.email||'').toLowerCase() !== meEmail);
+    const others = (users || []).filter(u => String(u.email||'').toLowerCase() !== meEmail);
     const meHabits = getHabitsFromUser(me);
 
     const MATCH_MAP = await getRoommatesMatchMap();
@@ -1176,15 +1196,19 @@
   } else {
     render();
   }
+
+  // Re-render when the remote layer refreshes users
+  window.addEventListener('users-refreshed', render);
 })();
 </script>
 
-<!-- ====== REMOTE-FIRST DATA LAYER (NEW) — uses /api/sheet?table=users, falls back to local ====== -->
+<!-- ====== REMOTE-FIRST DATA LAYER (kept) — emits users-refreshed when done ====== -->
 <script>
 (function(){
   const USERS_KEY = 'ezmate_users';
   const API_BASE = '/api/sheet'; // your Vercel serverless proxy
-  // override existing loadUsers() to try remote first, then local fallback
+
+  // Expose a single remote-first loader globally
   window.loadUsers = async function loadUsers(){
     try{
       const res = await fetch(`${API_BASE}?table=users`, { method:'GET', cache:'no-store' });
@@ -1192,7 +1216,7 @@
       const rows = await res.json();
       // Expecting array of objects with at least: email, username, phone, habits (comma or array)
       const normalized = (Array.isArray(rows)?rows:[]).map(r=>{
-        let habits = r.habits;
+        let habits = r.habits ?? r.Habits;
         if (typeof habits === 'string') {
           habits = habits.split(',').map(s=>s.trim()).filter(Boolean);
         } else if (!Array.isArray(habits)) {
@@ -1206,7 +1230,7 @@
           habits
         };
       });
-      // cache locally to keep the rest of the page logic unchanged
+      // cache locally for offline/fast subsequent access
       localStorage.setItem(USERS_KEY, JSON.stringify(normalized));
       return normalized;
     }catch(e){
@@ -1219,13 +1243,15 @@
     }
   };
 
-  // Kick a background refresh so above sections get latest soon after load
+  // Kick a refresh and notify listeners so UI can re-render now
   (async () => {
-    try { await window.loadUsers(); } catch {}
+    try {
+      await window.loadUsers();
+      window.dispatchEvent(new Event('users-refreshed'));
+    } catch {}
   })();
 })();
 </script>
 
 </body>
 </html>
-
