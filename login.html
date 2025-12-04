@@ -362,8 +362,8 @@
     }
 
     habitsGrid?.addEventListener('change', validateHabits);
-    habitsCancel?.addEventListener('click', ()=>{ /* force completion */ validateHabits(); });
-    habitsClose?.addEventListener('click', ()=>{ /* force completion */ validateHabits(); });
+    habitsCancel?.addEventListener('click', ()=>{ validateHabits(); });
+    habitsClose?.addEventListener('click', ()=>{ validateHabits(); });
 
     // ===== Sign Up =====
     async function handleSignup(email, password, username, phone) {
@@ -376,7 +376,7 @@
       if (users.some(u => (u.username||'').toLowerCase() === username.toLowerCase())) {
         showMessage('Username already taken. Choose another.', false); return;
       }
-      if (users.some(u => u.email.toLowerCase() === email.toLowerCase())) {
+      if (users.some(u => (u.email||'').toLowerCase() === email.toLowerCase())) {
         showMessage('Account already exists with this email. Please log in.', false); return;
       }
       if (password.length < 8) { showMessage('Password must be at least 8 characters.', false); return; }
@@ -397,29 +397,51 @@
       habitsModal.classList.add('show');
     }
 
-    // ===== Log In =====
+    // ===== Log In (fixed phone comparison & duplicate handling) =====
     async function handleLogin(email, password, phone) {
       // Try remote users first, then fallback to local cache
       const remote = await apiGetUsersSafe();
       if (remote && remote.length) {
-        // Cache remote to local for consistency
-        saveUsersLocal(remote);
+        // optional: de-dupe by email (newest createdAt wins) before caching
+        const map = new Map();
+        for (const r of remote) {
+          const key = String(r.email || '').toLowerCase();
+          if (!key) continue;
+          const prev = map.get(key);
+          const currTs = Date.parse(r.createdAt || r.CreatedAt || r.created_at || '') || 0;
+          const prevTs = prev ? (Date.parse(prev.createdAt || prev.CreatedAt || prev.created_at || '') || 0) : -1;
+          if (!prev || currTs >= prevTs) map.set(key, r);
+        }
+        saveUsersLocal(Array.from(map.values()));
       }
 
       const users = (remote && remote.length) ? remote : loadUsersLocal();
-      const user = users.find(u => (u.email || '').toLowerCase() === email.toLowerCase());
-      if (!user) { showMessage('No account found. Try Sign Up.', false); return; }
 
+      // All rows with this email (may be duplicates in sheet)
+      const byEmail = users.filter(u => (u.email || '').toLowerCase() === email.toLowerCase());
+      if (!byEmail.length) { showMessage('No account found. Try Sign Up.', false); return; }
+
+      // Normalize phone and pick the best row
       const phoneRaw = normalizePhone(phone);
       if (phoneRaw.length !== 10) { showMessage('Enter a valid 10-digit phone number.', false); return; }
-      if (user.phone && user.phone !== phoneRaw) { showMessage('Phone number does not match this account.', false); return; }
+
+      // pick a row whose phone matches normalized; else first row
+      const user =
+        byEmail.find(u => normalizePhone(u.phone) === phoneRaw) ||
+        byEmail[0];
+
+      // ✅ normalized comparison instead of strict string compare
+      const storedPhone = normalizePhone(user.phone);
+      if (storedPhone && storedPhone !== phoneRaw) {
+        showMessage('Phone number does not match this account.', false);
+        return;
+      }
       if (!loginOtpVerified) { showMessage('Please verify the OTP sent to your phone.', false); return; }
 
-      // For remote rows, we expect salt/hash present; else fallback to local flow
+      // Password check (handles remote or legacy local)
       const salt = user.salt;
       const hash = user.hash;
       if (!salt || !hash) {
-        // Legacy local user or missing crypto in sheet
         const locals = loadUsersLocal();
         const localUser = locals.find(u => (u.email || '').toLowerCase() === email.toLowerCase());
         if (!localUser) { showMessage('Unable to verify password for this account.', false); return; }
@@ -429,7 +451,6 @@
       } else {
         const computed = await hashPassword(password, salt);
         if (computed !== hash) { showMessage('Incorrect password.', false); return; }
-        // parse habits if stored as CSV
         const habits = Array.isArray(user.habits)
           ? user.habits
           : (typeof user.habits === 'string'
@@ -535,9 +556,9 @@
     });
 
     // ===== Habits modal save → finalize signup & write to remote sheet =====
-    let habitsPosting = false; // <<< FIX: single-flight guard
+    let habitsPosting = false; // single-flight guard
     habitsSave.onclick = async () => {
-      if (habitsPosting) return;       // prevent double click
+      if (habitsPosting) return;
       const pending = JSON.parse(sessionStorage.getItem('ezmate_pending_signup') || 'null');
       if (!pending) { showMessage('Signup context lost. Please try again.', false); return; }
       const selected = getSelectedHabits();
@@ -553,23 +574,22 @@
         const newUser = {
           email: pending.email,
           username: pending.username,
-          phone: pending.phone,
+          phone: pending.phone,            // already normalized (last 10 digits)
           salt: pending.salt,
           hash: pending.hash,
           createdAt: pending.createdAt,
           habits: selected
         };
 
-        // Local cache update first (instant UX)
+        // Local cache update first (instant UX; upsert to avoid duplicates)
         const all = loadUsersLocal();
-        // avoid local duplicates on repeated attempts within same session
-        const existsLocalIdx = all.findIndex(u => (u.email||'').toLowerCase() === newUser.email.toLowerCase());
-        if (existsLocalIdx >= 0) all[existsLocalIdx] = { ...all[existsLocalIdx], ...newUser };
+        const idx = all.findIndex(u => (u.email||'').toLowerCase() === newUser.email.toLowerCase());
+        if (idx >= 0) all[idx] = { ...all[idx], ...newUser };
         else all.push(newUser);
         saveUsersLocal(all);
         setSession({ email: newUser.email, username: newUser.username, habits: selected });
 
-        // Remote write with upsert behavior to avoid duplicate rows
+        // Remote write with upsert behavior
         let cloudOK = false;
         try {
           const remoteUsers = await apiGetUsersSafe(); // may be null on network error
@@ -595,7 +615,7 @@
               salt: newUser.salt,
               hash: newUser.hash,
               createdAt: newUser.createdAt,
-              bio: '', // optional
+              bio: '',
               habits: selected.join(', ')
             });
           }
@@ -604,46 +624,44 @@
           cloudOK = false;
         }
 
-        // Clear modal/session flag and continue
         habitsModal.classList.remove('show');
         sessionStorage.removeItem('ezmate_pending_signup');
 
         showMessage(cloudOK ? 'Saved to cloud ✓' : 'Saved locally (network issue)');
         setTimeout(() => window.location.href = 'index.html', 900);
       } finally {
-        // keep disabled until redirect; if there was an error earlier we'd re-enable
-        if (!document.hidden) {
-          habitsPosting = false;
-          // In success path we redirect; in failure we could re-enable:
-          // habitsSave.disabled = false; habitsSave.textContent = prevLabel;
-        }
+        // (Keep disabled on success; if you want to re-enable on error, add it here)
+        habitsPosting = false;
       }
     };
   </script>
 
-  <!-- ===== REMOTE DATA LAYER (new) — uses your Vercel proxy /api/sheet ===== -->
+  <!-- ===== REMOTE DATA LAYER — uses your /api/sheet proxy ===== -->
   <script>
     const API_BASE = '/api/sheet'; // serverless proxy on the same origin
+
+    function asString(x){ return (x==null ? '' : String(x)); }
 
     async function apiGetUsers() {
       const res = await fetch(`${API_BASE}?table=users`, { method:'GET', cache:'no-store' });
       if (!res.ok) throw new Error('GET /api/sheet failed');
       const rows = await res.json();
-      // normalize into the shape the app expects
+      // normalize into the shape the app expects (force strings; fix phone formats)
       return (Array.isArray(rows) ? rows : []).map(r => {
         const habits = Array.isArray(r.habits)
           ? r.habits
           : (typeof r.habits === 'string'
               ? r.habits.split(',').map(s=>s.trim()).filter(Boolean)
               : []);
+        const phoneStr = asString(r.phone || r.Phone || '').trim();
         return {
-          email: r.email || r.Email || '',
-          username: r.username || r.Username || '',
-          phone: r.phone || r.Phone || '',
-          salt:  r.salt || r.Salt || '',
-          hash:  r.hash || r.Hash || '',
-          createdAt: r.createdAt || r.CreatedAt || r.created_at || '',
-          bio: r.bio || r.Bio || '',
+          email: asString(r.email || r.Email || '').trim(),
+          username: asString(r.username || r.Username || '').trim(),
+          phone: phoneStr,                         // keep as string
+          salt:  asString(r.salt || r.Salt || ''),
+          hash:  asString(r.hash || r.Hash || ''),
+          createdAt: asString(r.createdAt || r.CreatedAt || r.created_at || ''),
+          bio: asString(r.bio || r.Bio || ''),
           habits
         };
       });
