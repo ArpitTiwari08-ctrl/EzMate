@@ -200,7 +200,7 @@
 
       let users = [];
       try {
-        users = await apiGetUsers();          // remote-only
+        users = await apiGetUsers();          // remote or gviz fallback
         users = dedupeByEmail(users);         // remove dup rows from sheet
         saveUsers(users);                     // cache for Connect phone lookup
         notice.style.display = 'none';
@@ -359,11 +359,18 @@
     })();
   </script>
 
-  <!-- Remote data layer -->
+  <!-- Remote data layer (with Google Sheets fallback) -->
   <script>
+    // Primary: your proxy (if/when available)
     const API_BASE = '/api/sheet';
 
-    async function apiGetUsers(){
+    // Fallback: read-only direct Google Sheets (gviz) — needs sheet to be public/viewable
+    const SPREADSHEET_ID = '1ONVMDp_ljGsupJVrlVZ4-ueSafWCrxKQHhwruiJHrxM';
+    const USERS_SHEET_NAME = 'users';
+    const GVIZ_URL =
+      `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(USERS_SHEET_NAME)}`;
+
+    async function apiGetUsersViaProxy(){
       const res = await fetch(`${API_BASE}?table=users`, { method:'GET', cache:'no-store' });
       if(!res.ok) throw new Error('GET /api/sheet failed');
       const rows = await res.json();
@@ -377,6 +384,52 @@
         bio: r.bio || r.Bio || '',
         habits: normHabits(r.habits ?? r.Habits)
       }));
+    }
+
+    async function apiGetUsersViaGviz(){
+      const res = await fetch(GVIZ_URL, { cache: 'no-store' });
+      const text = await res.text();
+      // gviz returns JS-wrapped JSON: google.visualization.Query.setResponse({...});
+      const json = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf(')')));
+
+      const cols = (json.table.cols || []).map(c => (c.label || '').trim());
+      const rows = (json.table.rows || []).map(r => {
+        const obj = {};
+        r.c.forEach((cell, i) => {
+          const key = (cols[i] || '').trim();
+          if (!key) return;
+          obj[key] = cell ? cell.v : '';
+        });
+        return obj;
+      });
+
+      return rows.map(r => {
+        const habits = Array.isArray(r.habits)
+          ? r.habits
+          : (typeof r.habits === 'string'
+              ? r.habits.split(',').map(s=>s.trim()).filter(Boolean)
+              : []);
+        return {
+          email: String(r.email || r.Email || '').trim(),
+          username: String(r.username || r.Username || '').trim(),
+          phone: String(r.phone || r.Phone || '').trim(),
+          salt: String(r.salt || r.Salt || ''),
+          hash: String(r.hash || r.Hash || ''),
+          createdAt: String(r.createdAt || r.CreatedAt || r.created_at || ''),
+          bio: String(r.bio || r.Bio || ''),
+          habits
+        };
+      });
+    }
+
+    // Unified getter: try proxy first, fall back to public Sheets
+    async function apiGetUsers(){
+      try {
+        return await apiGetUsersViaProxy();
+      } catch (e) {
+        console.warn('Proxy failed, falling back to Google Sheets gviz:', e);
+        return await apiGetUsersViaGviz();
+      }
     }
   </script>
 </body>
