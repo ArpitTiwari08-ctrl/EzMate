@@ -38,7 +38,7 @@
     /* Habits modal */
     .modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.35);z-index:50}
     .modal.show{display:flex}
-    .modal-card{background:#fff;border-radius:14px;border:1px solid #e5e7eb;max-width:640px;width:94%;padding:18px 18px 16px;box-shadow:var(--shadow-xl)}
+    .modal-card{background:#fff;border-radius:14px;border:1px solid var(--border);max-width:640px;width:94%;padding:18px 18px 16px;box-shadow:var(--shadow-xl)}
     .modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
     .modal-title{font-weight:800;margin:0;font-size:1.1rem}
     .modal-close{border:none;background:transparent;font-size:1.2rem;cursor:pointer;padding:.25rem .4rem;border-radius:8px}
@@ -95,7 +95,7 @@
       <label for="signup-password">Password</label>
       <input type="password" id="signup-password" placeholder="••••••••" required>
 
-      <button type="submit" class="btn-submit" id="signup-submit">Sign Up</button>
+      <button type="submit" class="btn-submit">Sign Up</button>
     </form>
 
     <!-- Log In Form (Hidden by Default) -->
@@ -126,7 +126,7 @@
       <label for="login-password">Password</label>
       <input type="password" id="login-password" placeholder="••••••••" required>
 
-      <button type="submit" class="btn-submit" id="login-submit">Log In</button>
+      <button type="submit" class="btn-submit">Log In</button>
     </form>
 
     <!-- Toggle -->
@@ -159,22 +159,19 @@
   </div>
 
   <script>
-    /* ===== Cloud proxy ===== */
-    const API_URL = '/api/sheet';
-
-    /* ===== Keys ===== */
+    // ===== Keys =====
     const USERS_KEY = 'ezmate_users';
     const SESSION_KEY = 'ezmate_current_user';
     const OTP_KEY = 'ezmate_otps';
 
-    /* ===== Habits master list ===== */
+    // ===== Habits master list =====
     const HABITS = [
       'Morning person','Night owl','Very clean','Tidy','Budget matched','Loves cooking','Meal prep',
       'Work from home','Quiet lifestyle','Moderately social','Plant lover','Hiker','Minimalist','Gym',
       'Pet lover','Coffee friendly','Focus nights','On-time rent','Non-smoker','Smoker (balcony only)'
     ];
 
-    /* ===== Elements ===== */
+    // ===== Elements =====
     const signupForm = document.getElementById('signup-form');
     const loginForm  = document.getElementById('login-form');
     const authTitle  = document.getElementById('auth-title');
@@ -190,7 +187,6 @@
     const suVerifyBtn = document.getElementById('signup-verify-otp');
     const suTimer = document.getElementById('signup-otp-timer');
     const suStatus = document.getElementById('signup-otp-status');
-    const suSubmit = document.getElementById('signup-submit');
 
     // login refs
     const liPhone = document.getElementById('login-phone');
@@ -200,7 +196,6 @@
     const liVerifyBtn = document.getElementById('login-verify-otp');
     const liTimer = document.getElementById('login-otp-timer');
     const liStatus = document.getElementById('login-otp-status');
-    const liSubmit = document.getElementById('login-submit');
 
     // Habits modal refs
     const habitsModal = document.getElementById('habits-modal');
@@ -209,7 +204,7 @@
     const habitsCancel= document.getElementById('habits-cancel');
     const habitsClose = document.getElementById('habits-close');
 
-    /* ===== UI helpers ===== */
+    // ===== UI helpers =====
     function showMessage(msg, ok = true) {
       messageBox.textContent = msg;
       messageBox.style.backgroundColor = ok ? 'var(--secondary)' : '#ef4444';
@@ -236,22 +231,65 @@
     }
     window.toggleForm = toggleForm;
 
-    /* ===== Storage helpers ===== */
-    function loadUsers() { try { return JSON.parse(localStorage.getItem(USERS_KEY)) || []; } catch { return []; } }
-    function saveUsers(users) { localStorage.setItem(USERS_KEY, JSON.stringify(users)); }
-    function setSession(user) { sessionStorage.setItem(SESSION_KEY, JSON.stringify({ ...user, at: Date.now() })); }
+    // ===== Storage helpers (local) =====
+    function loadUsersLocal() {
+      try { return JSON.parse(localStorage.getItem(USERS_KEY)) || []; }
+      catch { return []; }
+    }
+    function saveUsersLocal(users) {
+      localStorage.setItem(USERS_KEY, JSON.stringify(users));
+    }
+    function setSession(user) {
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify({ ...user, at: Date.now() }));
+    }
+    function getSession() {
+      try { return JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null'); } catch { return null; }
+    }
 
-    /* ===== OTP helpers ===== */
+    // ===== Crypto (salt + SHA-256) =====
+    function randBytes(len = 16) {
+      const arr = new Uint8Array(len);
+      crypto.getRandomValues(arr);
+      return arr;
+    }
+    function toB64(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))); }
+    function fromB64(b64) {
+      const bin = atob(b64);
+      const arr = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      return arr.buffer;
+    }
+    async function sha256(bytesOrStr) {
+      const data = typeof bytesOrStr === 'string' ? new TextEncoder().encode(bytesOrStr) : bytesOrStr;
+      const hash = await crypto.subtle.digest('SHA-256', data);
+      return new Uint8Array(hash);
+    }
+    async function hashPassword(password, saltB64) {
+      const salt = new Uint8Array(fromB64(saltB64));
+      const pwd = new TextEncoder().encode(password);
+      const combined = new Uint8Array(salt.length + pwd.length);
+      combined.set(salt, 0); combined.set(pwd, salt.length);
+      const digest = await sha256(combined);
+      return toB64(digest.buffer);
+    }
+
+    // ===== OTP helpers =====
     let signupOtpVerified = false;
     let loginOtpVerified = false;
 
     const OTP_EXP_MS = 3*60*1000;   // 3 minutes
     const RESEND_COOLDOWN = 30;     // seconds
 
-    function getOtpStore(){ try { return JSON.parse(sessionStorage.getItem(OTP_KEY)) || {}; } catch { return {}; } }
-    function setOtpStore(obj){ sessionStorage.setItem(OTP_KEY, JSON.stringify(obj)); }
-    function genOtp(){ return String(Math.floor(100000 + Math.random()*900000)); }
-
+    function getOtpStore(){
+      try { return JSON.parse(sessionStorage.getItem(OTP_KEY)) || {}; }
+      catch { return {}; }
+    }
+    function setOtpStore(obj){
+      sessionStorage.setItem(OTP_KEY, JSON.stringify(obj));
+    }
+    function genOtp(){
+      return String(Math.floor(100000 + Math.random()*900000)); // 6 digits
+    }
     function startTimer(timerEl, btn, expiresAt){
       let iv = setInterval(()=>{
         const left = Math.max(0, expiresAt - Date.now());
@@ -270,7 +308,6 @@
         if(cd<=0){ btn.disabled = false; clearInterval(cdIv); }
       },1000);
     }
-
     function sendOtp(flow, phone){
       const store = getOtpStore();
       const code = genOtp();
@@ -293,7 +330,6 @@
         startTimer(liTimer, liSendBtn, expiresAt);
       }
     }
-
     function verifyOtp(flow, phone, inputCode){
       const store = getOtpStore();
       const record = store[flow];
@@ -308,7 +344,7 @@
     }
     function normalizePhone(v){ return (v||'').replace(/\D/g,'').slice(-10); }
 
-    /* ===== Habits modal rendering ===== */
+    // ===== Habits modal rendering =====
     function renderHabitsChecklist() {
       habitsGrid.innerHTML = HABITS.map((h, i) => `
         <label class="habit">
@@ -329,41 +365,84 @@
     habitsCancel?.addEventListener('click', ()=>{ /* force completion */ validateHabits(); });
     habitsClose?.addEventListener('click', ()=>{ /* force completion */ validateHabits(); });
 
-    /* ===== Cloud helpers (Option 2) ===== */
-    async function cloudSignup(row){
-      const res = await fetch(API_URL, {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ op:'signup', row })
-      });
-      if(!res.ok) throw new Error('net');
-      return res.json();
-    }
-    async function cloudUpdateHabits(email, habits){
-      const res = await fetch(API_URL, {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ op:'updateHabits', email, habits })
-      });
-      if(!res.ok) throw new Error('net');
-      return res.json();
-    }
-    async function cloudLogin(email, password, phone){
-      const res = await fetch(API_URL, {
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ op:'login', email, password, phone })
-      });
-      if(!res.ok) throw new Error('net');
-      return res.json();
-    }
-    async function cloudGetAll(){
-      const res = await fetch(API_URL, { method:'GET', headers:{'Accept':'application/json'} });
-      if(!res.ok) throw new Error('net');
-      return res.json();
+    // ===== Sign Up =====
+    async function handleSignup(email, password, username, phone) {
+      const users = loadUsersLocal();
+
+      if (!username || username.length < 3) { showMessage('Username must be at least 3 characters.', false); return; }
+      const phoneRaw = normalizePhone(phone);
+      if (phoneRaw.length !== 10) { showMessage('Enter a valid 10-digit phone number.', false); return; }
+      if (!signupOtpVerified) { showMessage('Please verify the OTP sent to your phone.', false); return; }
+      if (users.some(u => (u.username||'').toLowerCase() === username.toLowerCase())) {
+        showMessage('Username already taken. Choose another.', false); return;
+      }
+      if (users.some(u => u.email.toLowerCase() === email.toLowerCase())) {
+        showMessage('Account already exists with this email. Please log in.', false); return;
+      }
+      if (password.length < 8) { showMessage('Password must be at least 8 characters.', false); return; }
+
+      // Prepare crypto but DO NOT write yet; we wait until habits are saved
+      const saltB64 = toB64(randBytes(16));
+      const hashB64 = await hashPassword(password, saltB64);
+
+      // Stash pre-signup data so habits modal can finish the record
+      const pending = {
+        email, username, phone: phoneRaw, salt: saltB64, hash: hashB64,
+        createdAt: new Date().toISOString()
+      };
+      sessionStorage.setItem('ezmate_pending_signup', JSON.stringify(pending));
+      setSession({ email, username }); // lightweight session to reach modal
+      renderHabitsChecklist();
+      habitsSave.disabled = true;
+      habitsModal.classList.add('show');
     }
 
-    /* ===== Sign Up / Log In handlers ===== */
+    // ===== Log In =====
+    async function handleLogin(email, password, phone) {
+      // Try remote users first, then fallback to local cache
+      const remote = await apiGetUsersSafe();
+      if (remote && remote.length) {
+        // Cache remote to local for consistency
+        saveUsersLocal(remote);
+      }
+
+      const users = (remote && remote.length) ? remote : loadUsersLocal();
+      const user = users.find(u => (u.email || '').toLowerCase() === email.toLowerCase());
+      if (!user) { showMessage('No account found. Try Sign Up.', false); return; }
+
+      const phoneRaw = normalizePhone(phone);
+      if (phoneRaw.length !== 10) { showMessage('Enter a valid 10-digit phone number.', false); return; }
+      if (user.phone && user.phone !== phoneRaw) { showMessage('Phone number does not match this account.', false); return; }
+      if (!loginOtpVerified) { showMessage('Please verify the OTP sent to your phone.', false); return; }
+
+      // For remote rows, we expect salt/hash present; else fallback to local flow
+      const salt = user.salt;
+      const hash = user.hash;
+      if (!salt || !hash) {
+        // Legacy local user or missing crypto in sheet
+        const locals = loadUsersLocal();
+        const localUser = locals.find(u => (u.email || '').toLowerCase() === email.toLowerCase());
+        if (!localUser) { showMessage('Unable to verify password for this account.', false); return; }
+        const computedLocal = await hashPassword(password, localUser.salt);
+        if (computedLocal !== localUser.hash) { showMessage('Incorrect password.', false); return; }
+        setSession({ email: localUser.email, username: localUser.username, habits: localUser.habits || [] });
+      } else {
+        const computed = await hashPassword(password, salt);
+        if (computed !== hash) { showMessage('Incorrect password.', false); return; }
+        // parse habits if stored as CSV
+        const habits = Array.isArray(user.habits)
+          ? user.habits
+          : (typeof user.habits === 'string'
+              ? user.habits.split(',').map(s=>s.trim()).filter(Boolean)
+              : []);
+        setSession({ email: user.email, username: user.username, habits });
+      }
+
+      showMessage('Log In successful! Redirecting...');
+      setTimeout(() => window.location.href = 'index.html', 1200);
+    }
+
+    // ===== Wire up forms =====
     function getFormValues(formEl) {
       const email = formEl.querySelector('input[type="email"]').value.trim();
       const password = formEl.querySelector('input[type="password"]').value;
@@ -374,29 +453,29 @@
       return { email, password, username, phone };
     }
 
-    // prevent duplicate OTP sends
-    let suLastPhoneSent = null;
-    let liLastPhoneSent = null;
-
+    // Show OTP section automatically when phone reaches 10 digits (signup)
     suPhone.addEventListener('input', ()=>{
       signupOtpVerified = false;
       const p = normalizePhone(suPhone.value);
-      if(p.length===10 && p !== suLastPhoneSent){
-        suLastPhoneSent = p;
+      if(p.length===10){
         suOtpWrap.classList.remove('hidden');
         sendOtp('signup', p);
         setTimeout(()=>document.getElementById('signup-otp').focus(), 50);
+      } else {
+        suOtpWrap.classList.add('hidden');
       }
     });
 
+    // Show OTP section automatically when phone reaches 10 digits (login)
     liPhone.addEventListener('input', ()=>{
       loginOtpVerified = false;
       const p = normalizePhone(liPhone.value);
-      if(p.length===10 && p !== liLastPhoneSent){
-        liLastPhoneSent = p;
+      if(p.length===10){
         liOtpWrap.classList.remove('hidden');
         sendOtp('login', p);
         setTimeout(()=>document.getElementById('login-otp').focus(), 50);
+      } else {
+        liOtpWrap.classList.add('hidden');
       }
     });
 
@@ -405,7 +484,6 @@
       const p = normalizePhone(suPhone.value);
       if(p.length!==10){ showMessage('Enter a valid 10-digit phone number.', false); return; }
       signupOtpVerified = false;
-      suLastPhoneSent = p;
       sendOtp('signup', p);
     });
     suVerifyBtn.addEventListener('click', ()=>{
@@ -418,7 +496,6 @@
       const p = normalizePhone(liPhone.value);
       if(p.length!==10){ showMessage('Enter a valid 10-digit phone number.', false); return; }
       loginOtpVerified = false;
-      liLastPhoneSent = p;
       sendOtp('login', p);
     });
     liVerifyBtn.addEventListener('click', ()=>{
@@ -426,144 +503,143 @@
       verifyOtp('login', p, liOtpInput.value);
     });
 
-    // SUBMIT GUARDS to stop duplicate rows
-    let isSigningUp = false;
-    let isLoggingIn = false;
-
-    // ===== Sign Up (Option 2 cloud-first, local fallback) =====
+    // Submit handlers
     signupForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      if(isSigningUp) return;
-      isSigningUp = true;
-      suSubmit.disabled = true;
-
-      try {
-        const { email, password, username, phone } = getFormValues(e.target);
-        const phoneRaw = normalizePhone(phone);
-
-        if (!username || username.length < 3) throw new Error('Username must be at least 3 characters.');
-        if (phoneRaw.length !== 10) throw new Error('Enter a valid 10-digit phone number.');
-        if (!signupOtpVerified) throw new Error('Please verify the OTP sent to your phone.');
-        if (password.length < 8) throw new Error('Password must be at least 8 characters.');
-
-        // Cloud check for duplicate + create (backend validates uniqueness)
-        const payload = { email, username, phone: phoneRaw, password, createdAt: new Date().toISOString() };
-        let cloudOk = false, cloudUser = null;
-        try {
-          const res = await cloudSignup(payload);
-          if(res && res.ok){
-            cloudOk = true;
-            cloudUser = { email, username, phone: phoneRaw, habits: [] };
-          }
-        } catch { /* network error */ }
-
-        if(!cloudOk){
-          // Fallback to local only if cloud is unavailable
-          const users = loadUsers();
-          if (users.some(u => (u.username||'').toLowerCase() === username.toLowerCase())) throw new Error('Username already taken.');
-          if (users.some(u => u.email.toLowerCase() === email.toLowerCase())) throw new Error('Account exists with this email.');
-          users.push({ email, username, phone: phoneRaw, password, createdAt: new Date().toISOString(), habits: [] });
-          saveUsers(users);
-          showMessage('Saved locally (network issue)', false);
-        }
-
-        // Open habits modal before redirect
-        renderHabitsChecklist();
-        habitsSave.disabled = true;
-        habitsModal.classList.add('show');
-
-        habitsSave.onclick = async () => {
-          const selected = getSelectedHabits();
-          if (selected.length < 3) { validateHabits(); return; }
-
-          // Cloud update habits if possible
-          let cloudHabitOk = false;
-          try {
-            const r = await cloudUpdateHabits(email, selected);
-            cloudHabitOk = r && r.ok;
-          } catch { /* ignore */ }
-
-          if(!cloudHabitOk){
-            // local fallback persist habits
-            const all = loadUsers();
-            const idx = all.findIndex(u => (u.email||'').toLowerCase() === email.toLowerCase());
-            if (idx !== -1) {
-              all[idx].habits = selected;
-              saveUsers(all);
-            }
-          }
-
-          setSession({ email, username, habits: selected });
-          showMessage('Profile habits saved! Redirecting...');
-          setTimeout(() => window.location.href = 'index.html', 900);
-        };
-
-      } catch (err) {
-        showMessage(err.message || 'Sign up failed.', false);
-      } finally {
-        isSigningUp = false;
-        suSubmit.disabled = false;
-        // e.target.reset();  // keep values in case of error
-      }
+      const { email, password, username, phone } = getFormValues(e.target);
+      await handleSignup(email, password, username, phone);
+      e.target.reset();
+      signupOtpVerified = false;
+      suOtpWrap.classList.add('hidden');
     });
 
-    // ===== Log In (cloud verify; local fallback only if offline) =====
     loginForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      if(isLoggingIn) return;
-      isLoggingIn = true;
-      liSubmit.disabled = true;
-
-      try{
-        const { email, password, phone } = getFormValues(e.target);
-        const phoneRaw = normalizePhone(phone);
-        if (phoneRaw.length !== 10) throw new Error('Enter a valid 10-digit phone number.');
-        if (!loginOtpVerified) throw new Error('Please verify the OTP sent to your phone.');
-
-        // Cloud login (backend compares encrypted password + phone)
-        let cloudOk = false, cloudUser = null;
-        try{
-          const res = await cloudLogin(email, password, phoneRaw);
-          if(res && res.ok && res.user){
-            cloudOk = true;
-            cloudUser = res.user; // {email, username, habits:[], phone}
-          }
-        }catch{ /* network error */ }
-
-        if(cloudOk){
-          setSession({ email: cloudUser.email, username: cloudUser.username, habits: cloudUser.habits || [] });
-          showMessage('Log In successful! Redirecting...');
-          setTimeout(() => window.location.href = 'index.html', 900);
-          return;
-        }
-
-        // Local fallback (only if offline AND user exists locally with plain password)
-        const users = loadUsers();
-        const user = users.find(u => (u.email||'').toLowerCase() === String(email).toLowerCase());
-        if(!user) throw new Error('No account found. Try again later.');
-        if (user.phone && user.phone !== phoneRaw) throw new Error('Phone number does not match this account.');
-        if (user.password && user.password === password) {
-          setSession({ email: user.email, username: user.username, habits: user.habits || [] });
-          showMessage('Offline login (local). Redirecting...');
-          setTimeout(() => window.location.href = 'index.html', 900);
-        } else {
-          throw new Error('Incorrect password.');
-        }
-
-      } catch(err){
-        showMessage(err.message || 'Login failed.', false);
-      } finally {
-        isLoggingIn = false;
-        liSubmit.disabled = false;
-        // e.target.reset();
-      }
+      const { email, password, phone } = getFormValues(e.target);
+      await handleLogin(email, password, phone);
+      e.target.reset();
+      loginOtpVerified = false;
+      liOtpWrap.classList.add('hidden');
     });
 
-    // Prepare habits modal
+    // Optional global logout helper
+    window.ezmateLogout = function () {
+      sessionStorage.removeItem(SESSION_KEY);
+      window.location.href = 'login.html';
+    };
+
+    // Prepare habits modal validation
     document.addEventListener('DOMContentLoaded', () => {
       renderHabitsChecklist();
       validateHabits();
     });
+
+    // ===== Habits modal save → finalize signup & write to remote sheet =====
+    habitsSave.onclick = async () => {
+      const pending = JSON.parse(sessionStorage.getItem('ezmate_pending_signup') || 'null');
+      if (!pending) { showMessage('Signup context lost. Please try again.', false); return; }
+      const selected = getSelectedHabits();
+      if (selected.length < 3) { validateHabits(); return; }
+
+      // Build final user record
+      const newUser = {
+        email: pending.email,
+        username: pending.username,
+        phone: pending.phone,
+        salt: pending.salt,
+        hash: pending.hash,
+        createdAt: pending.createdAt,
+        habits: selected
+      };
+
+      // Local cache update first (instant UX)
+      const all = loadUsersLocal();
+      all.push(newUser);
+      saveUsersLocal(all);
+      setSession({ email: newUser.email, username: newUser.username, habits: selected });
+
+      // Try remote append (single POST with all fields incl. habits)
+      let cloudOK = false;
+      try {
+        await apiAppendUser({
+          email: newUser.email,
+          username: newUser.username,
+          phone: newUser.phone,
+          salt: newUser.salt,
+          hash: newUser.hash,
+          createdAt: newUser.createdAt,
+          bio: '', // optional
+          habits: selected.join(', ')
+        });
+        cloudOK = true;
+      } catch (err) {
+        cloudOK = false;
+      }
+
+      // Clear modal/session flag and continue
+      habitsModal.classList.remove('show');
+      sessionStorage.removeItem('ezmate_pending_signup');
+
+      showMessage(cloudOK ? 'Saved to cloud ✓' : 'Saved locally (network issue)');
+      setTimeout(() => window.location.href = 'index.html', 900);
+    };
+  </script>
+
+  <!-- ===== REMOTE DATA LAYER (new) — uses your Vercel proxy /api/sheet ===== -->
+  <script>
+    const API_BASE = '/api/sheet'; // serverless proxy on the same origin
+
+    async function apiGetUsers() {
+      const res = await fetch(`${API_BASE}?table=users`, { method:'GET', cache:'no-store' });
+      if (!res.ok) throw new Error('GET /api/sheet failed');
+      const rows = await res.json();
+      // normalize into the shape the app expects
+      return (Array.isArray(rows) ? rows : []).map(r => {
+        const habits = Array.isArray(r.habits)
+          ? r.habits
+          : (typeof r.habits === 'string'
+              ? r.habits.split(',').map(s=>s.trim()).filter(Boolean)
+              : []);
+        return {
+          email: r.email || r.Email || '',
+          username: r.username || r.Username || '',
+          phone: r.phone || r.Phone || '',
+          salt:  r.salt || r.Salt || '',
+          hash:  r.hash || r.Hash || '',
+          createdAt: r.createdAt || r.CreatedAt || r.created_at || '',
+          bio: r.bio || r.Bio || '',
+          habits
+        };
+      });
+    }
+
+    async function apiAppendUser(row) {
+      const res = await fetch(`${API_BASE}?table=users`, {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify(row)
+      });
+      if (!res.ok) throw new Error('POST /api/sheet failed');
+      return res.json();
+    }
+
+    async function apiUpdateUser(email, patch) {
+      const url = `${API_BASE}?table=users&email=${encodeURIComponent(email)}`;
+      const res = await fetch(url, {
+        method:'PATCH',
+        headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify(patch)
+      });
+      if (!res.ok) throw new Error('PATCH /api/sheet failed');
+      return res.json();
+    }
+
+    // Safe helper for login — swallow network errors and return null
+    async function apiGetUsersSafe(){
+      try { return await apiGetUsers(); }
+      catch { return null; }
+    }
   </script>
 </body>
 </html>
+
