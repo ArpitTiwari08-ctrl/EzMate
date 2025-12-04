@@ -8,6 +8,7 @@
     :root{
       --primary:#2563EB; --secondary:#10B981; --bg:#F7F9FC; --card:#FFFFFF;
       --text:#0f172a; --muted:#475569; --border:#e5e7eb; --soft:#f3f4f6;
+      --warn:#FEF3C7; --warnBorder:#F59E0B; --warnText:#92400E;
     }
     *{box-sizing:border-box}
     body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
@@ -69,6 +70,9 @@
     .modal-close{border:none;background:transparent;font-size:1.2rem;cursor:pointer;padding:.25rem .4rem;border-radius:8px}
     .modal-close:hover{background:#f3f4f6}
     .modal-body{color:#334155;font-size:.95rem}
+
+    /* Notice */
+    .notice{background:var(--warn);border:1px solid var(--warnBorder);color:var(--warnText);padding:.7rem .9rem;border-radius:12px;margin:12px 0 0;font-weight:600}
   </style>
 </head>
 <body>
@@ -89,6 +93,7 @@
         <span class="chip">Budget</span>
         <span class="chip">WFH</span>
       </div>
+      <div id="net-notice" class="notice" style="display:none">Network issue — showing nothing from cache to avoid stale data. Retry later.</div>
     </section>
 
     <section class="list" id="list" aria-live="polite">
@@ -110,10 +115,9 @@
   </div>
 
   <script>
-    const USERS_KEY = 'ezmate_users';
+    const USERS_KEY = 'ezmate_users';         // still used for phone lookup fallback
     const SESSION_KEY = 'ezmate_current_user';
 
-    function loadUsers(){ try { return JSON.parse(localStorage.getItem(USERS_KEY))||[] } catch { return [] } }
     function saveUsers(users){ localStorage.setItem(USERS_KEY, JSON.stringify(users||[])); }
     function getSession(){ try { return JSON.parse(sessionStorage.getItem(SESSION_KEY)||'null') } catch { return null } }
 
@@ -129,8 +133,7 @@
       const A = new Set((a||[]).map(x=>x.toLowerCase()));
       const B = new Set((b||[]).map(x=>x.toLowerCase()));
       if (!A.size && !B.size) return 0;
-      let inter = 0;
-      A.forEach(x=>{ if (B.has(x)) inter++; });
+      let inter = 0; A.forEach(x=>{ if (B.has(x)) inter++; });
       const union = new Set([...A, ...B]).size || 1;
       return inter / union;
     }
@@ -140,7 +143,6 @@
       return t || '?';
     }
 
-    // NOTE: minimal tweak — add data-email and data-phone so Connect can find the right number
     function cardHtml(user, scorePct){
       const tags = normHabits(user.habits).slice(0,3);
       const role = (user.role) || (user.email?.includes('student') ? 'Verified Student' : 'Verified User');
@@ -176,26 +178,43 @@
       </article>`;
     }
 
+    // De-dupe helper: keep newest by createdAt for each email
+    function dedupeByEmail(rows){
+      const map = new Map();
+      for(const r of rows){
+        const email = (r.email||'').toLowerCase();
+        if(!email) continue;
+        const prev = map.get(email);
+        const currTs = Date.parse(r.createdAt||r.CreatedAt||r.created_at||'') || 0;
+        const prevTs = prev ? (Date.parse(prev.createdAt||prev.CreatedAt||prev.created_at||'') || 0) : -1;
+        if(!prev || currTs >= prevTs) map.set(email, r);
+      }
+      return Array.from(map.values());
+    }
+
     async function renderList(){
       const list = document.getElementById('list');
+      const notice = document.getElementById('net-notice');
       const session = getSession();
       const meEmail = (session?.email||'').toLowerCase();
 
-      // Try to load shared users from cloud (via proxy); fallback to local on error
       let users = [];
       try {
-        users = await apiGetUsers();                // <-- new
-        if (Array.isArray(users) && users.length){
-          saveUsers(users); // cache
-        } else {
-          users = loadUsers();
-        }
+        users = await apiGetUsers();          // remote-only
+        users = dedupeByEmail(users);         // remove dup rows from sheet
+        saveUsers(users);                     // cache for Connect phone lookup
+        notice.style.display = 'none';
       } catch {
-        users = loadUsers();
+        // Show a clear notice and do NOT silently use cache for the list UI
+        notice.style.display = 'block';
+        list.innerHTML = `<div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px;color:#334155">
+          Unable to reach EzMate cloud right now. Please try again.
+        </div>`;
+        return;
       }
 
-      const meLocal = users.find(u => (u.email||'').toLowerCase()===meEmail) || {};
-      const meHabits = normHabits(session?.habits?.length ? session.habits : meLocal.habits);
+      const meRemote = users.find(u => (u.email||'').toLowerCase()===meEmail) || {};
+      const meHabits = normHabits(session?.habits?.length ? session.habits : meRemote.habits);
 
       // Others only
       const others = users.filter(u => (u.email||'').toLowerCase() !== meEmail);
@@ -207,10 +226,11 @@
         return;
       }
 
-      // Sort by compatibility desc (same logic as index/previous)
+      // Sort by compatibility desc
       const enriched = others.map(u => {
         const sim = habitsSimilarity(meHabits, normHabits(u.habits));
-        return { user: u, pct: Math.round(sim*100) };
+        const pct = Math.max(60, Math.round(sim*100)); // keep UI friendly
+        return { user: u, pct };
       }).sort((a,b)=>b.pct - a.pct);
 
       list.innerHTML = enriched.map(x => cardHtml(x.user, x.pct)).join('');
@@ -269,14 +289,8 @@
       document.body.style.overflow = '';
     }
 
-    // Global click handlers for connect/view
+    // Only keep the view-profile handler (removed old hardcoded tel handler)
     document.addEventListener('click', (e)=>{
-      const connect = e.target.closest('.js-connect');
-      if (connect) {
-        // (kept original; our capture interceptor below prevents this from firing)
-        window.location.href = 'tel:9310281596';
-        return;
-      }
       const view = e.target.closest('.js-view');
       if (view) {
         const card = view.closest('.card');
@@ -294,7 +308,7 @@
     (async function(){ await renderList(); wireSearch(); })();
   </script>
 
-  <!-- ADDED: Connect button should call the profile owner's registered phone -->
+  <!-- Connect button → call the profile owner's phone -->
   <script>
     (function(){
       const USERS_KEY = 'ezmate_users';
@@ -304,19 +318,18 @@
       }
       function normalizePhone(v){ return (v||'').replace(/\D/g,'').slice(-10); }
 
-      // Use capture phase so we intercept before the existing bubble-phase handler
+      // Capture phase so nothing else hijacks it
       document.addEventListener('click', function(e){
         const btn = e.target.closest('.js-connect');
         if(!btn) return;
 
-        // prevent the older handler (which dials fixed number) from running
         e.preventDefault();
         e.stopPropagation();
 
         const card  = btn.closest('.card');
         const users = loadUsers();
 
-        // 1) Prefer data-phone if present on the card
+        // 1) Prefer data-phone on the card
         let tel = card?.dataset?.phone;
 
         // 2) Try data-email match
@@ -325,7 +338,7 @@
           if(u) tel = u.phone;
         }
 
-        // 3) Fallback: match by data-name to username or the email local-part
+        // 3) Fallback by name or email local-part
         if(!tel && card?.dataset?.name){
           const nm = card.dataset.name.trim().toLowerCase();
           const u = users.find(x => {
@@ -342,15 +355,14 @@
         } else {
           alert('Phone number for this profile is missing. Ask the user to add it in their profile.');
         }
-      }, true); // capture
+      }, true);
     })();
   </script>
 
-  <!-- NEW: Remote data layer (minimal) -->
+  <!-- Remote data layer -->
   <script>
     const API_BASE = '/api/sheet';
 
-    // Fetch shared users from your Vercel proxy; normalize shape
     async function apiGetUsers(){
       const res = await fetch(`${API_BASE}?table=users`, { method:'GET', cache:'no-store' });
       if(!res.ok) throw new Error('GET /api/sheet failed');
@@ -367,7 +379,5 @@
       }));
     }
   </script>
-  
 </body>
 </html>
-
