@@ -535,53 +535,89 @@
     });
 
     // ===== Habits modal save → finalize signup & write to remote sheet =====
+    let habitsPosting = false; // <<< FIX: single-flight guard
     habitsSave.onclick = async () => {
+      if (habitsPosting) return;       // prevent double click
       const pending = JSON.parse(sessionStorage.getItem('ezmate_pending_signup') || 'null');
       if (!pending) { showMessage('Signup context lost. Please try again.', false); return; }
       const selected = getSelectedHabits();
       if (selected.length < 3) { validateHabits(); return; }
 
-      // Build final user record
-      const newUser = {
-        email: pending.email,
-        username: pending.username,
-        phone: pending.phone,
-        salt: pending.salt,
-        hash: pending.hash,
-        createdAt: pending.createdAt,
-        habits: selected
-      };
+      habitsPosting = true;
+      const prevLabel = habitsSave.textContent;
+      habitsSave.disabled = true;
+      habitsSave.textContent = 'Saving…';
 
-      // Local cache update first (instant UX)
-      const all = loadUsersLocal();
-      all.push(newUser);
-      saveUsersLocal(all);
-      setSession({ email: newUser.email, username: newUser.username, habits: selected });
-
-      // Try remote append (single POST with all fields incl. habits)
-      let cloudOK = false;
       try {
-        await apiAppendUser({
-          email: newUser.email,
-          username: newUser.username,
-          phone: newUser.phone,
-          salt: newUser.salt,
-          hash: newUser.hash,
-          createdAt: newUser.createdAt,
-          bio: '', // optional
-          habits: selected.join(', ')
-        });
-        cloudOK = true;
-      } catch (err) {
-        cloudOK = false;
+        // Build final user record
+        const newUser = {
+          email: pending.email,
+          username: pending.username,
+          phone: pending.phone,
+          salt: pending.salt,
+          hash: pending.hash,
+          createdAt: pending.createdAt,
+          habits: selected
+        };
+
+        // Local cache update first (instant UX)
+        const all = loadUsersLocal();
+        // avoid local duplicates on repeated attempts within same session
+        const existsLocalIdx = all.findIndex(u => (u.email||'').toLowerCase() === newUser.email.toLowerCase());
+        if (existsLocalIdx >= 0) all[existsLocalIdx] = { ...all[existsLocalIdx], ...newUser };
+        else all.push(newUser);
+        saveUsersLocal(all);
+        setSession({ email: newUser.email, username: newUser.username, habits: selected });
+
+        // Remote write with upsert behavior to avoid duplicate rows
+        let cloudOK = false;
+        try {
+          const remoteUsers = await apiGetUsersSafe(); // may be null on network error
+          const existing = Array.isArray(remoteUsers)
+            ? remoteUsers.find(u => (u.email||'').toLowerCase() === newUser.email.toLowerCase())
+            : null;
+
+          if (existing) {
+            await apiUpdateUser(newUser.email, {
+              username: newUser.username,
+              phone: newUser.phone,
+              salt: newUser.salt,
+              hash: newUser.hash,
+              createdAt: newUser.createdAt,
+              bio: existing.bio || '',
+              habits: selected.join(', ')
+            });
+          } else {
+            await apiAppendUser({
+              email: newUser.email,
+              username: newUser.username,
+              phone: newUser.phone,
+              salt: newUser.salt,
+              hash: newUser.hash,
+              createdAt: newUser.createdAt,
+              bio: '', // optional
+              habits: selected.join(', ')
+            });
+          }
+          cloudOK = true;
+        } catch (err) {
+          cloudOK = false;
+        }
+
+        // Clear modal/session flag and continue
+        habitsModal.classList.remove('show');
+        sessionStorage.removeItem('ezmate_pending_signup');
+
+        showMessage(cloudOK ? 'Saved to cloud ✓' : 'Saved locally (network issue)');
+        setTimeout(() => window.location.href = 'index.html', 900);
+      } finally {
+        // keep disabled until redirect; if there was an error earlier we'd re-enable
+        if (!document.hidden) {
+          habitsPosting = false;
+          // In success path we redirect; in failure we could re-enable:
+          // habitsSave.disabled = false; habitsSave.textContent = prevLabel;
+        }
       }
-
-      // Clear modal/session flag and continue
-      habitsModal.classList.remove('show');
-      sessionStorage.removeItem('ezmate_pending_signup');
-
-      showMessage(cloudOK ? 'Saved to cloud ✓' : 'Saved locally (network issue)');
-      setTimeout(() => window.location.href = 'index.html', 900);
     };
   </script>
 
@@ -642,4 +678,3 @@
   </script>
 </body>
 </html>
-
