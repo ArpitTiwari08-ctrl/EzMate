@@ -1,76 +1,100 @@
 // /api/sheet.js
-// Tiny serverless proxy to forward JSON rows to SheetBest.
-// Avoids CORS/403 by sending from your own domain (Vercel).
-//
-// Frontend: fetch('/api/sheet', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(row) })
-//
-// Optional: You can override the URL via an environment variable SHEETBEST_URL in Vercel.
+// Proxy to Google Apps Script Web App (GAS) for EzMate "users" table.
+// Supports: GET (list or by ?email=), POST (upsert), PATCH (emulated via method=PATCH).
+// Set env var: GAS_WEB_APP_URL  -> your Apps Script Web App URL (ending in /exec)
 
-const SHEETBEST_URL =
-  process.env.SHEETBEST_URL ||
-  'https://api.sheetbest.com/sheets/578f6242-bd5a-4373-8096-2a7c7c6bae62';
+const GAS_URL = process.env.GAS_WEB_APP_URL; // e.g. https://script.google.com/macros/s/.../exec
 
-// Basic CORS helper (safe even if same-origin; helps with tools or previews)
 function setCors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+}
+
+function buildTargetUrl(req) {
+  if (!GAS_URL) throw new Error('GAS_WEB_APP_URL is not set');
+  const url = new URL(GAS_URL);
+  // Pass through query params (e.g., ?table=users&email=...)
+  const q = new URL(req.url, 'http://localhost').searchParams;
+  q.forEach((v, k) => url.searchParams.set(k, v));
+  // Default table
+  if (!url.searchParams.get('table')) url.searchParams.set('table', 'users');
+  return url.toString();
+}
+
+async function readBody(req) {
+  if (req.body && typeof req.body === 'object') return req.body;
+  let raw = '';
+  await new Promise((resolve) => {
+    req.on('data', (chunk) => (raw += chunk));
+    req.on('end', resolve);
+  });
+  if (!raw) return {};
+  try { return JSON.parse(raw); } catch { return {}; }
 }
 
 export default async function handler(req, res) {
   setCors(res);
 
-  // Handle preflight quickly
-  if (req.method === 'OPTIONS') {
-    return res.status(204).end();
-  }
+  if (req.method === 'OPTIONS') return res.status(204).end();
 
-  if (req.method !== 'POST') {
-    res.setHeader('Allow', 'POST, OPTIONS');
-    return res.status(405).json({ ok: false, error: 'Method Not Allowed' });
+  let upstreamUrl;
+  try {
+    upstreamUrl = buildTargetUrl(req);
+  } catch (e) {
+    return res.status(500).json({ ok: false, error: String(e) });
   }
 
   try {
-    // Ensure we have the body as an object or stringified JSON
-    let incoming = req.body;
+    const method = req.method.toUpperCase();
 
-    // If body is empty and not parsed (e.g., raw stream), read it
-    if (
-      incoming == null ||
-      (typeof incoming === 'string' && incoming.trim().length === 0)
-    ) {
-      let raw = '';
-      await new Promise((resolve) => {
-        req.on('data', (chunk) => (raw += chunk));
-        req.on('end', resolve);
+    // Emulate PATCH → POST to GAS with method=PATCH&email=...
+    if (method === 'PATCH') {
+      const u = new URL(upstreamUrl);
+      u.searchParams.set('method', 'PATCH');
+      // Email must be in query; accept from body if missing
+      const bodyObj = await readBody(req);
+      if (!u.searchParams.get('email') && bodyObj && bodyObj.email) {
+        u.searchParams.set('email', bodyObj.email);
+      }
+      if (!u.searchParams.get('email')) {
+        return res.status(400).json({ ok: false, error: 'PATCH requires ?email=...' });
+      }
+
+      const upstream = await fetch(u.toString(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(bodyObj || {}),
       });
-      incoming = raw ? JSON.parse(raw) : {};
+
+      const text = await upstream.text();
+      let data; try { data = JSON.parse(text); } catch { data = { raw: text }; }
+      return res.status(upstream.status).json(data);
     }
 
-    // Accept either a single object or an array of objects
-    const payload =
-      typeof incoming === 'string' ? incoming : JSON.stringify(incoming);
-
-    const upstream = await fetch(SHEETBEST_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        // If you ever add a SheetBest key, pass it like:
-        // 'X-API-KEY': process.env.SHEETBEST_KEY
-      },
-      body: payload,
-    });
-
-    const text = await upstream.text();
-    // Try to parse JSON but don't break if it isn't
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch {
-      data = { raw: text };
+    // GET → pass-through to GAS (list or by ?email=)
+    if (method === 'GET') {
+      const upstream = await fetch(upstreamUrl, { method: 'GET' });
+      const text = await upstream.text();
+      let data; try { data = JSON.parse(text); } catch { data = { raw: text }; }
+      return res.status(upstream.status).json(data);
     }
 
-    return res.status(upstream.status).json(data);
+    // POST → upsert array/object to GAS
+    if (method === 'POST') {
+      const bodyObj = await readBody(req);
+      const upstream = await fetch(upstreamUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: typeof bodyObj === 'string' ? bodyObj : JSON.stringify(bodyObj || {}),
+      });
+      const text = await upstream.text();
+      let data; try { data = JSON.parse(text); } catch { data = { raw: text }; }
+      return res.status(upstream.status).json(data);
+    }
+
+    res.setHeader('Allow', 'GET, POST, PATCH, OPTIONS');
+    return res.status(405).json({ ok: false, error: 'Method Not Allowed' });
   } catch (err) {
     return res.status(500).json({ ok: false, error: String(err) });
   }
