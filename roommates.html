@@ -192,49 +192,86 @@
       return Array.from(map.values());
     }
 
+    // ---------- UPDATED: cache-aware renderList ----------
     async function renderList(){
       const list = document.getElementById('list');
       const notice = document.getElementById('net-notice');
       const session = getSession();
-      const meEmail = (session?.email||'').toLowerCase();
+      const meEmail = (session?.email || '').toLowerCase();
+
+      const getCache = () => {
+        try { return JSON.parse(localStorage.getItem(USERS_KEY) || '[]'); }
+        catch { return []; }
+      };
 
       let users = [];
+      let usedCache = false;
+
+      // 1) Try live (Google Sheets via gviz in this file)
       try {
-        users = await apiGetUsers();          // remote or gviz fallback
-        users = dedupeByEmail(users);         // remove dup rows from sheet
-        saveUsers(users);                     // cache for Connect phone lookup
-        notice.style.display = 'none';
-      } catch {
-        // Show a clear notice and do NOT silently use cache for the list UI
+        users = await apiGetUsers();
+        users = Array.isArray(users) ? users : [];
+      } catch (e) {
+        console.warn('[EzMate] live fetch failed:', e);
+        users = [];
+      }
+
+      // 2) If live failed or returned nothing, fall back to cache
+      if (!users.length) {
+        const cached = getCache();
+        if (cached.length) {
+          users = cached;
+          usedCache = true;
+          console.info('[EzMate] using cached users:', users.length);
+        }
+      }
+
+      // 3) Still nothing? Show friendly message and stop
+      if (!users.length) {
         notice.style.display = 'block';
+        notice.textContent = 'Network issue — no cached data yet. Try again later.';
         list.innerHTML = `<div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px;color:#334155">
-          Unable to reach EzMate cloud right now. Please try again.
+          Unable to reach EzMate cloud right now. No cached users available.
         </div>`;
         return;
       }
 
-      const meRemote = users.find(u => (u.email||'').toLowerCase()===meEmail) || {};
-      const meHabits = normHabits(session?.habits?.length ? session.habits : meRemote.habits);
+      // 4) De-dupe + persist fresh cache (even if it came from cache)
+      users = dedupeByEmail(users);
+      saveUsers(users);
 
-      // Others only
-      const others = users.filter(u => (u.email||'').toLowerCase() !== meEmail);
+      // 5) Notice handling
+      if (usedCache) {
+        notice.style.display = 'block';
+        notice.textContent = 'Network issue — showing cached data.';
+      } else {
+        notice.style.display = 'none';
+      }
 
-      if (!others.length){
+      // 6) Compute "me" habits (prefer session, else from row)
+      const meRemote = users.find(u => (u.email || '').toLowerCase() === meEmail) || {};
+      const meHabits = normHabits((session?.habits && session.habits.length) ? session.habits : meRemote.habits);
+
+      // 7) Exclude myself
+      const others = users.filter(u => (u.email || '').toLowerCase() !== meEmail);
+
+      if (!others.length) {
         list.innerHTML = `<div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px;color:#334155">
           No other users yet. Share EzMate with friends and come back!
         </div>`;
         return;
       }
 
-      // Sort by compatibility desc
+      // 8) Compatibility + render
       const enriched = others.map(u => {
         const sim = habitsSimilarity(meHabits, normHabits(u.habits));
-        const pct = Math.max(60, Math.round(sim*100)); // keep UI friendly
+        const pct = Math.max(60, Math.round(sim * 100)); // friendly floor
         return { user: u, pct };
-      }).sort((a,b)=>b.pct - a.pct);
+      }).sort((a, b) => b.pct - a.pct);
 
       list.innerHTML = enriched.map(x => cardHtml(x.user, x.pct)).join('');
     }
+    // ---------- /UPDATED renderList ----------
 
     // Search
     function normalize(s){ return (s||'').toLowerCase(); }
@@ -359,101 +396,99 @@
     })();
   </script>
 
- <!-- Remote data layer (Google Sheets ONLY, no proxy) -->
-<script>
-  // ======= REQUIRED: your Sheet must be viewable by anyone (or Published to web) =======
-  // Spreadsheet ID from the URL:
-  // https://docs.google.com/spreadsheets/d/1ONVMDp_ljGsupJVrlVZ4-ueSafWCrxKQHhwruiJHrxM/edit
-  const SPREADSHEET_ID = '1ONVMDp_ljGsupJVrlVZ4-ueSafWCrxKQHhwruiJHrxM';
-  const USERS_SHEET_NAME = 'users';
+  <!-- Remote data layer (Google Sheets ONLY, no proxy) -->
+  <script>
+    // ======= REQUIRED: your Sheet must be viewable by anyone (or Published to web) =======
+    // Spreadsheet ID from the URL:
+    // https://docs.google.com/spreadsheets/d/1ONVMDp_ljGsupJVrlVZ4-ueSafWCrxKQHhwruiJHrxM/edit
+    const SPREADSHEET_ID = '1ONVMDp_ljGsupJVrlVZ4-ueSafWCrxKQHhwruiJHrxM';
+    const USERS_SHEET_NAME = 'users';
 
-  // Robust GVIZ URLs
-  const GVIZ_JSON_URL =
-    `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(USERS_SHEET_NAME)}`;
-  const GVIZ_CSV_URL =
-    `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(USERS_SHEET_NAME)}`;
+    // Robust GVIZ URLs
+    const GVIZ_JSON_URL =
+      `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(USERS_SHEET_NAME)}`;
+    const GVIZ_CSV_URL =
+      `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(USERS_SHEET_NAME)}`;
 
-  // Parse the weird GVIZ JSON (it wraps the JSON in setResponse(...))
-  function parseGvizJson(text){
-    // Try to extract the object inside setResponse(...)
-    const m = text.match(/setResponse\(([\s\S]*?)\);\s*$/);
-    const jsonStr = m ? m[1] : text.substring(text.indexOf('{'), text.lastIndexOf(')'));
-    return JSON.parse(jsonStr);
-  }
+    // Parse the weird GVIZ JSON (it wraps the JSON in setResponse(...))
+    function parseGvizJson(text){
+      const m = text.match(/setResponse\(([\s\S]*?)\);\s*$/);
+      const jsonStr = m ? m[1] : text.substring(text.indexOf('{'), text.lastIndexOf(')'));
+      return JSON.parse(jsonStr);
+    }
 
-  function normalizeRowObject(obj){
-    // Normalize possible header-case differences and CSV habits
-    const get = (k) => obj[k] ?? obj[k[0].toUpperCase() + k.slice(1)] ?? '';
-    const habitsVal = get('habits');
-    const habits = Array.isArray(habitsVal)
-      ? habitsVal
-      : (typeof habitsVal === 'string'
-          ? habitsVal.split(',').map(s=>s.trim()).filter(Boolean)
-          : []);
-    return {
-      email: String(get('email')).trim(),
-      username: String(get('username')).trim(),
-      phone: String(get('phone')).trim(),
-      salt: String(get('salt')),
-      hash: String(get('hash')),
-      createdAt: String(get('createdAt') || get('created_at')),
-      bio: String(get('bio')),
-      habits
-    };
-  }
+    function normalizeRowObject(obj){
+      // Normalize possible header-case differences and CSV habits
+      const get = (k) => obj[k] ?? obj[k[0].toUpperCase() + k.slice(1)] ?? '';
+      const habitsVal = get('habits');
+      const habits = Array.isArray(habitsVal)
+        ? habitsVal
+        : (typeof habitsVal === 'string'
+            ? habitsVal.split(',').map(s=>s.trim()).filter(Boolean)
+            : []);
+      return {
+        email: String(get('email')).trim(),
+        username: String(get('username')).trim(),
+        phone: String(get('phone')).trim(),
+        salt: String(get('salt')),
+        hash: String(get('hash')),
+        createdAt: String(get('createdAt') || get('created_at')),
+        bio: String(get('bio')),
+        habits
+      };
+    }
 
-  async function apiGetUsersViaGvizJson(){
-    const res = await fetch(GVIZ_JSON_URL, { cache: 'no-store' });
-    if (!res.ok) throw new Error(`GVIZ JSON HTTP ${res.status}`);
-    const text = await res.text();
+    async function apiGetUsersViaGvizJson(){
+      const res = await fetch(GVIZ_JSON_URL, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`GVIZ JSON HTTP ${res.status}`);
+      const text = await res.text();
 
-    const json = parseGvizJson(text);
-    const cols = (json.table?.cols || []).map(c => (c.label || '').trim());
-    const rows = (json.table?.rows || []).map(r => {
-      const o = {};
-      (r.c || []).forEach((cell, i) => {
-        const key = cols[i] || '';
-        if (!key) return;
-        o[key] = cell ? cell.v : '';
+      const json = parseGvizJson(text);
+      const cols = (json.table?.cols || []).map(c => (c.label || '').trim());
+      const rows = (json.table?.rows || []).map(r => {
+        const o = {};
+        (r.c || []).forEach((cell, i) => {
+          const key = cols[i] || '';
+          if (!key) return;
+          o[key] = cell ? cell.v : '';
+        });
+        return o;
       });
-      return o;
-    });
-    return rows.map(normalizeRowObject);
-  }
-
-  async function apiGetUsersViaCsvFallback(){
-    const res = await fetch(GVIZ_CSV_URL, { cache: 'no-store' });
-    if (!res.ok) throw new Error(`GVIZ CSV HTTP ${res.status}`);
-    const text = await res.text();
-
-    // very small CSV parser (handles simple cases)
-    const lines = text.trim().split(/\r?\n/);
-    if (!lines.length) return [];
-    const headers = lines[0].split(',').map(h => h.trim());
-    const out = [];
-    for (let i = 1; i < lines.length; i++){
-      const vals = lines[i].split(',').map(v => v.trim());
-      const obj = {};
-      headers.forEach((h, idx) => obj[h] = vals[idx] ?? '');
-      out.push(normalizeRowObject(obj));
+      return rows.map(normalizeRowObject);
     }
-    return out;
-  }
 
-  // Single function the rest of the page uses.
-  // Tries GVIZ JSON first, then CSV as a fallback.
-  async function apiGetUsers(){
-    try {
-      const users = await apiGetUsersViaGvizJson();
-      if (Array.isArray(users)) return users;
-      throw new Error('GVIZ JSON returned non-array');
-    } catch (e) {
-      console.warn('GVIZ JSON failed, trying CSV fallback:', e);
-      return await apiGetUsersViaCsvFallback();
+    async function apiGetUsersViaCsvFallback(){
+      const res = await fetch(GVIZ_CSV_URL, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`GVIZ CSV HTTP ${res.status}`);
+      const text = await res.text();
+
+      // very small CSV parser (handles simple cases)
+      const lines = text.trim().split(/\r?\n/);
+      if (!lines.length) return [];
+      const headers = lines[0].split(',').map(h => h.trim());
+      const out = [];
+      for (let i = 1; i < lines.length; i++){
+        const vals = lines[i].split(',').map(v => v.trim());
+        const obj = {};
+        headers.forEach((h, idx) => obj[h] = vals[idx] ?? '');
+        out.push(normalizeRowObject(obj));
+      }
+      return out;
     }
-  }
-</script>
+
+    // Single function the rest of the page uses.
+    // Tries GVIZ JSON first, then CSV as a fallback.
+    async function apiGetUsers(){
+      try {
+        const users = await apiGetUsersViaGvizJson();
+        if (Array.isArray(users)) return users;
+        throw new Error('GVIZ JSON returned non-array');
+      } catch (e) {
+        console.warn('GVIZ JSON failed, trying CSV fallback:', e);
+        return await apiGetUsersViaCsvFallback();
+      }
+    }
+  </script>
 
 </body>
 </html>
-
