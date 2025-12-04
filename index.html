@@ -19,7 +19,6 @@
       --blue-50: #EFF6FF;
       --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
       --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-      --nav-h: 88px;
   }
 
   /* Base Styles */
@@ -30,7 +29,8 @@
       color: var(--gray-800);
       margin: 0;
       line-height: 1.5;
-      padding-top: 0; /* header is fixed; we compensate in hero */
+      /* leave room for fixed header capsule */
+      padding-top: 88px; /* adjust if your capsule height changes */
   }
 
   /* Layout Helpers */
@@ -63,6 +63,7 @@
   .rounded-full { border-radius: 9999px; }
   .shadow-md { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
   .shadow-xl { box-shadow: var(--shadow-xl); }
+  /* FIXED: px typo */
   .shadow-2xl { box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); }
   .hidden { display: none; }
   @media (min-width: 768px) {
@@ -212,9 +213,8 @@
       background-position: center;
       position: relative;
       color: white !important;
-      padding-top: calc(11rem + var(--nav-h));
+      padding-top: 11rem; 
       padding-bottom: 21rem;
-      margin-top: calc(var(--nav-h) * -1);
   }
   .hero-background::before {
       content: '';
@@ -230,7 +230,7 @@
   .hero-content h1 { color: white !important; }
   .hero-content p { color: #E0F2F1 !important; }
 
-  /* --- EZMATE NAVBAR (Capsule) + Dropdown --- */
+  /* --- EZMATE NAVBAR J (Capsule) + Dropdown --- */
 
   header {
     background: transparent !important;
@@ -241,20 +241,18 @@
     z-index: 60;
   }
 
-  .ez-wrap { padding: .75rem .75rem; background: transparent; }
+  .ez-wrap { padding: 1rem; background: transparent; }
 
   .ez-navbar {
       background: #fff;
       border: 1px solid #e5e7eb;
       border-radius: 16px;
-      padding: 0.7rem 1rem;
+      padding: 0.9rem 1.5rem;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: .75rem;
       box-shadow: 0 10px 30px rgba(0,0,0,.06);
       position: relative;
-      min-height: 56px;
   }
 
   .ez-logo {
@@ -262,40 +260,31 @@
       align-items: center;
       gap: .5rem;
       font-weight: 800;
-      font-size: 1.5rem;
+      font-size: 1.7rem;
       color: var(--primary);
       text-decoration: none;
-      white-space: nowrap;
   }
-  .ez-logo svg { width: 24px; height: 24px; stroke: var(--secondary); stroke-width: 2.2; }
+  .ez-logo svg { width: 28px; height: 28px; stroke: var(--secondary); stroke-width: 2.2; }
 
   .ez-nav-center {
-      position: static;
-      display: flex;
-      gap: .75rem;
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-      scrollbar-width: none;
-      max-width: 55vw;
+      position: absolute; left: 50%; transform: translateX(-50%);
+      display: flex; gap: 1.2rem;
   }
-  .ez-nav-center::-webkit-scrollbar{ display:none; }
   .ez-nav-center a {
       text-decoration: none; color: #374151; font-weight: 700;
-      padding: .35rem .75rem; border-radius: 10px; transition: .2s;
-      white-space: nowrap;
-      flex: 0 0 auto;
+      padding: .45rem 1rem; border-radius: 10px; transition: .2s;
   }
   .ez-nav-center a:hover { background: #EFF6FF; color: var(--primary); }
 
   .ez-profile {
-      width: 36px; height: 36px; border-radius: 50%; overflow: hidden;
+      width: 38px; height: 38px; border-radius: 50%; overflow: hidden;
       border: 2px solid #fff; box-shadow: 0 0 8px rgba(16,185,129,.25); cursor: pointer; flex-shrink: 0;
   }
   .ez-profile img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .ez-dropdown {
       position: absolute; top: calc(100% + 8px); right: 1rem; background: #fff;
       border: 1px solid #e5e7eb; border-radius: 10px; box-shadow: 0 12px 28px rgba(0,0,0,.12);
-      padding: .5rem; min-width: 180px; z-index: 70; display: none;
+      padding: .5rem; min-width: 180px; z-index: 30; display: none;
   }
   .ez-dropdown.open { display: block; }
   .ez-dropdown a {
@@ -305,12 +294,10 @@
   .ez-dropdown a:hover { background: #f3f4f6; }
   .ez-dropdown .sep { height: 1px; background: #e5e7eb; margin: .5rem 0; }
 
-  /* Better mobile stacking */
-  @media (max-width: 640px){
-    .ez-navbar { padding: .6rem .75rem; }
-    .ez-logo { font-size: 1.25rem; }
-    .ez-nav-center { max-width: 50vw; }
-  }
+  :root { --nav-h: 88px; }
+  body { padding-top: 0 !important; }
+  .hero-background { margin-top: calc(var(--nav-h) * -1); padding-top: calc(11rem + var(--nav-h)); }
+  .hero-background + * { scroll-margin-top: var(--nav-h); }
 
   /* ======== PROFILE PANEL (kept, but not used by modal) ======== */
   #profile-panel {
@@ -370,14 +357,31 @@
       transition: 200ms;
   }
   #profile-close-btn:hover { background: #f3f4f6; color: #111; }
+  /* --- Profile overlay duplicate block (kept as-is) --- */
+#profile-overlay{
+  position:fixed; inset:0; display:none; justify-content:center; align-items:center;
+  background:rgba(0,0,0,.45); backdrop-filter:blur(6px); z-index:9999;
+}
+#profile-overlay.show{ display:flex; }
+#profile-box{
+  background:#fff; width:90%; max-width:520px; padding:2rem; border-radius:1rem;
+  box-shadow:0 20px 40px rgba(0,0,0,.25); position:relative; transform:translateY(24px); opacity:0;
+  transition:300ms ease;
+}
+#profile-overlay.show #profile-box{ transform:translateY(0); opacity:1; }
+#profile-close-btn{
+  position:absolute; top:10px; right:12px; width:36px; height:36px; display:grid; place-items:center;
+  font-size:20px; color:#555; cursor:pointer; border-radius:.5rem; transition:200ms;
+}
+#profile-close-btn:hover{ background:#f3f4f6; color:#111; }
 
-  /* --- Tiny floating “Meet Mates” button --- */
-  .fab-mates{
-    position:fixed; right:16px; bottom:16px; z-index:60;
-    background:#2563EB; color:#fff; font-weight:800; border-radius:9999px;
-    padding:.75rem 1rem; box-shadow:0 10px 24px rgba(0,0,0,.12); text-decoration:none;
-  }
-  .fab-mates:hover{ filter:brightness(.95); }
+/* --- Tiny floating “Meet Mates” button (non-intrusive) --- */
+.fab-mates{
+  position:fixed; right:16px; bottom:16px; z-index:60;
+  background:#2563EB; color:#fff; font-weight:800; border-radius:9999px;
+  padding:.75rem 1rem; box-shadow:0 10px 24px rgba(0,0,0,.12); text-decoration:none;
+}
+.fab-mates:hover{ filter:brightness(.95); }
 
 </style>
 
@@ -404,7 +408,6 @@
     <header>
         <div class="ez-wrap">
             <div class="ez-navbar" id="ez-navbar">
-                <!-- LEFT: LOGO -->
                 <a href="index.html" class="ez-logo">
                     EzMate
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
@@ -413,19 +416,16 @@
                     </svg>
                 </a>
 
-                <!-- CENTER: LINKS -->
                 <nav class="ez-nav-center">
                     <a href="#features">Features</a>
                     <a href="roommates.html">Meet Mates</a>
                     <a href="#about">Mission</a>
                 </nav>
 
-                <!-- RIGHT: PROFILE AVATAR -->
                 <div class="ez-profile" id="ez-avatar" aria-haspopup="true" aria-expanded="false">
                     <img id="ez-avatar-img" alt="Profile" src="" />
                 </div>
 
-                <!-- DROPDOWN -->
                 <div class="ez-dropdown" id="ez-menu" role="menu" aria-label="User menu">
                     <a href="#" id="ez-profile-link">
                         <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon" viewBox="0 0 24 24" style="width:18px;height:18px;stroke:#111827;">
@@ -462,7 +462,7 @@
         </div>
     </section>
 
-    <!-- ===== PROFILE PANEL (kept but not opened by menu; IDs renamed to avoid clashes) ===== -->
+    <!-- PROFILE PANEL (kept) -->
     <section id="profile-panel" class="hidden" aria-label="User profile">
       <div class="container">
         <h2 style="margin:0 0 .5rem; color: var(--gray-900);">Your Profile</h2>
@@ -490,7 +490,7 @@
       </div>
     </section>
 
-    <!-- Smart Matching System Section -->
+    <!-- Smart Matching System -->
     <section id="features" style="padding-top: 5rem; padding-bottom: 5rem; background-color: var(--card-bg);">
         <div class="container">
             <div class="text-center" style="margin-bottom: 3rem;">
@@ -504,7 +504,7 @@
                 <!-- Feature 1 -->
                 <div class="card-item">
                     <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon-medium" viewBox="0 0 24 24" style="stroke: var(--primary); margin-bottom: 1rem;">
-                        <path fill="none" d="M10 2v2a6 6 0 0 0 6 6h2a6 6 0 0 0 6-6V2"/><path d="M4 16h16a2 2 0 0 0 2-2v-2a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v2a2 2 0 0 0 2 2zM8 22H6a2 2 0 0 1-2-2v-4h4v4a2 2 0 0 1-2 2z"/>
+                        <path class="svg-fill-none" d="M10 2v2a6 6 0 0 0 6 6h2a6 6 0 0 0 6-6V2"/><path d="M4 16h16a2 2 0 0 0 2-2v-2a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v2a2 2 0 0 0 2 2zM8 22H6a2 2 0 0 1-2-2v-4h4v4a2 2 0 0 1-2 2z"/>
                     </svg>
                     <h3>Deep Profile Matching</h3>
                     <p>Profiles include **lifestyle preferences, cleanliness, sleep schedules, social habits, and budget**. We focus on compatibility rather than just availability.</p>
@@ -513,7 +513,7 @@
                 <!-- Feature 2 -->
                 <div class="card-item">
                     <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon-medium" viewBox="0 0 24 24" style="stroke: var(--primary); margin-bottom: 1rem;">
-                        <path fill="none" d="M12 20V10M18 20V4M6 20v-4"/>
+                        <path class="svg-fill-none" d="M12 20V10M18 20V4M6 20v-4"/>
                     </svg>
                     <h3>High Match Scores</h3>
                     <p>Users choose their room and set preferences, and the platform recommends potential roommates with **high match scores**—making finding someone you'll get along with easy.</p>
@@ -522,7 +522,7 @@
                 <!-- Feature 3 -->
                 <div class="card-item">
                     <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon-medium" viewBox="0 0 24 24" style="stroke: var(--primary); margin-bottom: 1rem;">
-                        <path fill="none" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/>
+                        <path class="svg-fill-none" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/>
                     </svg>
                     <h3>Safer, Comfortable Living</h3>
                     <p>By prioritizing shared expectations and compatibility, we help create a **safer, more comfortable, and conflict-free living environment** for everyone.</p>
@@ -531,7 +531,7 @@
         </div>
     </section>
 
-    <!-- Key Features Section -->
+    <!-- Key Features -->
     <section id="key-features" style="padding-top: 5rem; padding-bottom: 5rem; background-color: var(--background);">
         <div class="container">
             <div class="text-center" style="margin-bottom: 3rem;">
@@ -545,25 +545,25 @@
                 <div class="lg-order-1 flex justify-center">
                     <div class="card-item" style="max-width: 28rem; border-bottom: 4px solid rgba(37, 99, 235, 0.5); padding: 1.5rem;">
                         <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon-large" viewBox="0 0 24 24" style="stroke: var(--primary); margin: 0 auto 1rem;">
-                            <path fill="none" d="M14 19a6 6 0 0 0-12 0"/><circle cx="8" cy="10" r="4"/><path d="M22 19a6 6 0 0 0-6-6h-2M10 19a6 6 0 0 1 6-6h2"/><circle cx="16" cy="10" r="4"/>
+                            <path class="svg-fill-none" d="M14 19a6 6 0 0 0-12 0"/><circle cx="8" cy="10" r="4"/><path d="M22 19a6 6 0 0 0-6-6h-2M10 19a6 6 0 0 1 6-6h2"/><circle cx="16" cy="10" r="4"/>
                         </svg>
                         <p style="font-size: 1.25rem; font-weight: 600; text-align: center; color: var(--gray-600);">Matching the right vibe.</p>
                         <ul style="margin-top: 1rem; padding-left: 0; list-style: none; text-align: left; color: var(--gray-600);">
                             <li class="flex items-center" style="margin-bottom: 0.5rem; gap: 0.5rem;">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon-small" viewBox="0 0 24 24" style="stroke: var(--secondary);">
-                                    <path fill="none" d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M9 11l3 3L22 4"/>
+                                    <path class="svg-fill-none" d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M9 11l3 3L22 4"/>
                                 </svg>
                                 Budget Aligned
                             </li>
                             <li class="flex items-center" style="margin-bottom: 0.5rem; gap: 0.5rem;">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon-small" viewBox="0 0 24 24" style="stroke: var(--secondary);">
-                                    <path fill="none" d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M9 11l3 3L22 4"/>
+                                    <path class="svg-fill-none" d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M9 11l3 3L22 4"/>
                                 </svg>
                                 Cleanliness Matched
                             </li>
                             <li class="flex items-center" style="margin-bottom: 0.5rem; gap: 0.5rem;">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon-small" viewBox="0 0 24 24" style="stroke: var(--secondary);">
-                                    <path fill="none" d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M9 11l3 3L22 4"/>
+                                    <path class="svg-fill-none" d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M9 11l3 3L22 4"/>
                                 </svg>
                                 Socially Compatible
                             </li>
@@ -575,7 +575,7 @@
                 <div class="lg-order-2" style="margin-top: 2rem;">
                     <div class="feature-details">
                         <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon" viewBox="0 0 24 24" style="stroke: var(--secondary); flex-shrink: 0;">
-                            <path fill="none" d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 10l-2.04 2.04L17 9"/>
+                            <path class="svg-fill-none" d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 10l-2.04 2.04L17 9"/>
                         </svg>
                         <div>
                             <h3>Verified Profiles</h3>
@@ -585,7 +585,7 @@
 
                     <div class="feature-details">
                         <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon" viewBox="0 0 24 24" style="stroke: var(--secondary); flex-shrink: 0;">
-                            <path fill="none" d="M14 22V10a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h4l4 4 4-4z"/><path d="M18 18V6a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2"/>
+                            <path class="svg-fill-none" d="M14 22V10a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h4l4 4 4-4z"/><path d="M18 18V6a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2"/>
                         </svg>
                         <div>
                             <h3>Secure Messaging</h3>
@@ -595,7 +595,7 @@
 
                     <div class="feature-details">
                         <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon" viewBox="0 0 24 24" style="stroke: var(--secondary); flex-shrink: 0;">
-                            <path fill="none" d="M22 3.5H2l8.5 10v7l3-3v-4.5L22 3.5z"/>
+                            <path class="svg-fill-none" d="M22 3.5H2l8.5 10v7l3-3v-4.5L22 3.5z"/>
                         </svg>
                         <div>
                             <h3>Preference Filters</h3>
@@ -605,7 +605,7 @@
                     
                     <div class="feature-details">
                         <svg xmlns="http://www.w3.org/2000/svg" class="svg-icon" viewBox="0 0 24 24" style="stroke: var(--secondary); flex-shrink: 0;">
-                            <path fill="none" d="M15 2H5a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7z"/><path d="M14 2v4a2 2 0 0 0 2 2h4M9 13h6M9 17h6M9 9h3"/>
+                            <path class="svg-fill-none" d="M15 2H5a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V7z"/><path d="M14 2v4a2 2 0 0 0 2 2h4M9 13h6M9 17h6M9 9h3"/>
                         </svg>
                         <div>
                             <h3>Roommate Agreements</h3>
@@ -617,7 +617,7 @@
         </div>
     </section>
 
-    <!-- New Potential Mates Section -->
+    <!-- Potential Mates -->
     <section id="potential-mates" style="padding-top: 5rem; padding-bottom: 5rem; background-color: var(--card-bg);">
         <div class="container">
             <div class="text-center" style="margin-bottom: 3rem;">
@@ -628,56 +628,57 @@
                 </p>
             </div>
 
-            <div class="card-grid card-grid-3" id="mates-grid">
-                <!-- will be replaced by real users if available -->
-                <!-- original demo cards kept if no users -->
+            <div class="card-grid card-grid-3">
+                <!-- (These 3 demo cards are kept; JS may replace them with real users if available) -->
                 <div class="card-item" style="border: 1px solid rgba(37, 99, 235, 0.2);">
-                  <div class="flex items-center" style="margin-bottom: 1rem; gap: 1rem;">
-                    <div style="width: 4rem; height: 4rem; border-radius: 9999px; border: 2px solid var(--primary); background-color: var(--primary); color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.5rem;">J</div>
-                    <div>
-                      <h3 style="margin-bottom: 0.125rem;">Jane (92% Match)</h3>
-                      <p style="font-size: 0.875rem; color: var(--secondary); font-weight: 500;">Verified User</p>
+                    <div class="flex items-center" style="margin-bottom: 1rem; gap: 1rem;">
+                        <div style="width: 4rem; height: 4rem; border-radius: 9999px; border: 2px solid var(--primary); background-color: var(--primary); color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.5rem;">J</div>
+                        <div>
+                            <h3 style="margin-bottom: 0.125rem;">Jane (92% Match)</h3>
+                            <p style="font-size: 0.875rem; color: var(--secondary); font-weight: 500;">Verified User</p>
+                        </div>
                     </div>
-                  </div>
-                  <p style="color: var(--gray-600); margin-bottom: 1rem; font-size: 0.875rem;">"Looking for a quiet, professional environment. I'm neat and usually work a 9-to-5 schedule."</p>
-                  <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; font-size: 0.875rem;">
-                    <span class="mate-tag">Morning Person</span>
-                    <span class="mate-tag">Budget Matched</span>
-                    <span class="mate-tag">Very Clean</span>
-                  </div>
-                  <button class="mate-btn rounded-lg shadow-md">View Profile</button>
+                    <p style="color: var(--gray-600); margin-bottom: 1rem; font-size: 0.875rem;">"Looking for a quiet, professional environment. I'm neat and usually work a 9-to-5 schedule."</p>
+                    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; font-size: 0.875rem;">
+                        <span class="mate-tag">Morning Person</span>
+                        <span class="mate-tag">Budget Matched</span>
+                        <span class="mate-tag">Very Clean</span>
+                    </div>
+                    <button class="mate-btn rounded-lg shadow-md">View Profile</button>
                 </div>
+
                 <div class="card-item" style="border: 1px solid rgba(37, 99, 235, 0.2);">
-                  <div class="flex items-center" style="margin-bottom: 1rem; gap: 1rem;">
-                    <div style="width: 4rem; height: 4rem; border-radius: 9999px; border: 2px solid var(--secondary); background-color: var(--secondary); color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.5rem;">M</div>
-                    <div>
-                      <h3 style="margin-bottom: 0.125rem;">Michael (88% Match)</h3>
-                      <p style="font-size: 0.875rem; color: var(--secondary); font-weight: 500;">Verified User</p>
+                    <div class="flex items-center" style="margin-bottom: 1rem; gap: 1rem;">
+                        <div style="width: 4rem; height: 4rem; border-radius: 9999px; border: 2px solid var(--secondary); background-color: var(--secondary); color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.5rem;">M</div>
+                        <div>
+                            <h3 style="margin-bottom: 0.125rem;">Michael (88% Match)</h3>
+                            <p style="font-size: 0.875rem; color: var(--secondary); font-weight: 500;">Verified User</p>
+                        </div>
                     </div>
-                  </div>
-                  <p style="color: var(--gray-600); margin-bottom: 1rem; font-size: 0.875rem;">"I love to cook and occasionally have friends over on weekends. Respectful of shared spaces."</p>
-                  <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; font-size: 0.875rem;">
-                    <span class="mate-tag">Night Owl</span>
-                    <span class="mate-tag">Loves Cooking</span>
-                    <span class="mate-tag">Moderately Social</span>
-                  </div>
-                  <button class="mate-btn rounded-lg shadow-md">View Profile</button>
+                    <p style="color: var(--gray-600); margin-bottom: 1rem; font-size: 0.875rem;">"I love to cook and occasionally have friends over on weekends. Respectful of shared spaces."</p>
+                    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; font-size: 0.875rem;">
+                        <span class="mate-tag">Night Owl</span>
+                        <span class="mate-tag">Loves Cooking</span>
+                        <span class="mate-tag">Moderately Social</span>
+                    </div >
+                    <button class="mate-btn rounded-lg shadow-md">View Profile</button>
                 </div>
+
                 <div class="card-item" style="border: 1px solid rgba(37, 99, 235, 0.2);">
-                  <div class="flex items-center" style="margin-bottom: 1rem; gap: 1rem;">
-                    <div style="width: 4rem; height: 4rem; border-radius: 9999px; border: 2px solid var(--primary); background-color: #4F46E5; color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.5rem;">S</div>
-                    <div>
-                      <h3 style="margin-bottom: 0.125rem;">Sarah (95% Match)</h3>
-                      <p style="font-size: 0.875rem; color: var(--secondary); font-weight: 500;">Verified User</p>
+                    <div class="flex items-center" style="margin-bottom: 1rem; gap: 1rem;">
+                        <div style="width: 4rem; height: 4rem; border-radius: 9999px; border: 2px solid var(--primary); background-color: #4F46E5; color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.5rem;">S</div>
+                        <div>
+                            <h3 style="margin-bottom: 0.125rem;">Sarah (95% Match)</h3>
+                            <p style="font-size: 0.875rem; color: var(--secondary); font-weight: 500;">Verified User</p>
+                        </div>
                     </div>
-                  </div>
-                  <p style="color: var(--gray-600); margin-bottom: 1rem; font-size: 0.875rem;">"Seeking a roommate for a two-bedroom. I keep things very tidy and value quiet study time."</p>
-                  <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; font-size: 0.875rem;">
-                    <span class="mate-tag">Study Focused</span>
-                    <span class="mate-tag">On Time Rent</span>
-                    <span class="mate-tag">Quiet Lifestyle</span>
-                  </div>
-                  <button class="mate-btn rounded-lg shadow-md">View Profile</button>
+                    <p style="color: var(--gray-600); margin-bottom: 1rem; font-size: 0.875rem;">"Seeking a roommate for a two-bedroom. I keep things very tidy and value quiet study time."</p>
+                    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; font-size: 0.875rem;">
+                        <span class="mate-tag">Study Focused</span>
+                        <span class="mate-tag">On Time Rent</span>
+                        <span class="mate-tag">Quiet Lifestyle</span>
+                    </div>
+                    <button class="mate-btn rounded-lg shadow-md">View Profile</button>
                 </div>
             </div>
             
@@ -689,7 +690,7 @@
         </div>
     </section>
 
-    <!-- Call to Action Section -->
+    <!-- CTA -->
     <section class="cta-section">
         <div class="container text-center">
             <h2 style="font-size: 2.25rem; font-weight: 700;">Ready to Find Your EzMate?</h2>
@@ -756,14 +757,13 @@
       </div>
     </div>
 
-    <!-- NAVBAR + PROFILE logic -->
+    <!-- NAVBAR + PROFILE logic (kept) -->
     <script>
       (function () {
         try {
           const user = window.__EZMATE_USER__ || JSON.parse(sessionStorage.getItem('ezmate_current_user') || 'null');
           if (!user || !user.email) return;
 
-          // Set avatar image (prefer user's avatarUrl, else fallback to inline SVG)
           const avatarImg = document.getElementById('ez-avatar-img');
           const fallbackSvgDataUrl =
             'data:image/svg+xml;utf8,' +
@@ -791,14 +791,12 @@
             avatar.setAttribute('aria-expanded', String(isOpen));
           }
 
-          // Toggle on avatar click
           avatar.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
             toggleMenu();
           });
 
-          // Close on click outside / ESC
           document.addEventListener('click', (e) => {
             if (!menu.classList.contains('open')) return;
             if (!menu.contains(e.target) && e.target !== avatar && !avatar.contains(e.target)) {
@@ -807,7 +805,6 @@
           });
           document.addEventListener('keydown', (e) => { if (e.key === 'Escape') toggleMenu(false); });
 
-          // Pre-fill the inline (non-modal) panel labels just in case you show it somewhere
           const inlineEmail = document.getElementById('pf-email-inline');
           const inlineUser = document.getElementById('pf-username-inline');
           function deriveUsername(email){
@@ -821,7 +818,6 @@
         } catch { /* ignore */ }
       })();
 
-      /* PROFILE MODAL: run after DOM is parsed to avoid nulls */
       window.addEventListener('DOMContentLoaded', () => {
         const overlay = document.getElementById("profile-overlay");
         const pfUser = document.getElementById("pf-username");
@@ -850,7 +846,6 @@
         overlay.addEventListener("click", (e) => { if (e.target === overlay) closeProfile(); });
         document.addEventListener("keydown", (e) => { if (e.key === "Escape" && overlay.classList.contains("show")) closeProfile(); });
 
-        // Logout
         document.getElementById('ez-logout-link').addEventListener('click', (e) => {
           e.preventDefault();
           sessionStorage.removeItem('ezmate_current_user');
@@ -859,7 +854,7 @@
       });
     </script>
 
-<!-- SECOND profile overlay (kept as-is, no functional change) -->
+<!-- Duplicate modal kept (unchanged) -->
 <div id="profile-overlay" aria-modal="true" role="dialog" aria-labelledby="profile-title">
   <div id="profile-box">
     <button id="profile-close-btn" aria-label="Close profile">&times;</button>
@@ -874,104 +869,363 @@
   </div>
 </div>
 
-<!-- Always-available access to roommates -->
 <a class="fab-mates" href="roommates.html" aria-label="Open Meet Mates">Meet Mates</a>
 
-<!-- ====== DATA HELPERS: fetch users from /api/sheet (Sheets) with local fallback ====== -->
+<!-- Profile habits + home users (kept) -->
 <script>
-  const API_URL = '/api/sheet';
+/* ===== EZMATE: Habits in profile + real users on home (minimal, non-destructive) ===== */
+(function () {
   const USERS_KEY = 'ezmate_users';
-  function saveLocalUsers(list){ try { localStorage.setItem(USERS_KEY, JSON.stringify(list||[])); } catch {} }
-  function loadLocalUsers(){ try { return JSON.parse(localStorage.getItem(USERS_KEY))||[]; } catch { return []; } }
+  const SESSION_KEY = 'ezmate_current_user';
 
-  async function fetchUsersFromCloud(){
-    try{
-      const res = await fetch(API_URL, { method:'GET', headers:{'Accept':'application/json'} });
-      if(!res.ok) throw 0;
-      const data = await res.json();
-      const rows = Array.isArray(data?.rows) ? data.rows : (Array.isArray(data) ? data : []);
-      // normalize habits as array
-      const norm = rows.map(r=>{
-        const habits = Array.isArray(r.habits) ? r.habits
-                     : typeof r.habits === 'string' ? r.habits.split(',').map(s=>s.trim()).filter(Boolean)
-                     : [];
-        return { ...r, habits };
-      });
-      saveLocalUsers(norm);
-      return norm;
-    }catch{
-      return loadLocalUsers();
-    }
+  function loadUsers() {
+    try { const v = JSON.parse(localStorage.getItem(USERS_KEY)); return Array.isArray(v) ? v : []; }
+    catch { return []; }
   }
-</script>
-
-<!-- ====== HOME: Insert real users into Potential Mates (kept same visuals) ====== -->
-<script>
-(function(){
-  function initialsFrom(nameOrEmail){
-    if(!nameOrEmail) return '?';
-    const base = String(nameOrEmail).split('@')[0];
-    const parts = base.replace(/[_\-.]+/g,' ').trim().split(/\s+/);
-    const letters = parts.slice(0,2).map(p => (p[0]||'').toUpperCase()).join('');
-    return letters || (base[0]||'?').toUpperCase();
+  function getSession() {
+    try { const v = JSON.parse(sessionStorage.getItem(SESSION_KEY)); return v && typeof v === 'object' ? v : null; }
+    catch { return null; }
   }
-  function getHabitsFromUser(u){
-    if(!u) return [];
-    if(Array.isArray(u.habits)) return u.habits.filter(Boolean).map(String);
-    if(u.preferences && Array.isArray(u.preferences.habits)) return u.preferences.habits.filter(Boolean).map(String);
-    if(typeof u.habits==='string') return u.habits.split(',').map(s=>s.trim()).filter(Boolean);
+  function getHabitsFromUser(u) {
+    if (!u) return [];
+    if (Array.isArray(u.habits)) return u.habits.filter(Boolean).map(String);
+    if (u.preferences && Array.isArray(u.preferences.habits)) return u.preferences.habits.filter(Boolean).map(String);
     return [];
   }
-  function computeOverlapMatch(meHabits, u){
-    const A = new Set((meHabits||[]).map(s=>String(s).toLowerCase()));
-    const B = new Set(getHabitsFromUser(u).map(s=>String(s).toLowerCase()));
-    if(!A.size || !B.size) return 80;
-    let overlap=0; B.forEach(x=>{ if(A.has(x)) overlap++; });
-    const score = Math.round((overlap/Math.max(A.size,B.size))*100);
-    return Math.max(0, Math.min(100, score));
+
+  function ensureProfileHabitsUI() {
+    document.querySelectorAll('#profile-overlay #profile-box').forEach(box => {
+      if (!box || box.querySelector('.pf-habits-wrap')) return;
+      const wrap = document.createElement('div');
+      wrap.className = 'pf-habits-wrap';
+      wrap.style.marginTop = '1rem';
+
+      const h3 = document.createElement('h3');
+      h3.textContent = 'Preferences & Habits';
+      h3.style.margin = '0 0 .5rem';
+      h3.style.color = '#111827';
+      h3.style.fontWeight = '700';
+      h3.style.fontSize = '1rem';
+
+      const chips = document.createElement('div');
+      chips.className = 'pf-habits';
+      chips.style.display = 'flex';
+      chips.style.flexWrap = 'wrap';
+      chips.style.gap = '.5rem';
+
+      const empty = document.createElement('div');
+      empty.className = 'pf-habits-empty';
+      empty.textContent = 'No habits added yet.';
+      empty.style.color = '#6B7280';
+      empty.style.fontSize = '.9rem';
+
+      wrap.appendChild(h3);
+      wrap.appendChild(chips);
+      wrap.appendChild(empty);
+      box.appendChild(wrap);
+    });
   }
-  function createCard(u, match){
-    const ini = initialsFrom(u.username||u.email);
-    const tags = getHabitsFromUser(u).slice(0,6);
+
+  function renderChips(container, items) {
+    container.innerHTML = '';
+    items.forEach(txt => {
+      const span = document.createElement('span');
+      span.className = 'mate-tag';
+      span.textContent = String(txt);
+      container.appendChild(span);
+    });
+  }
+
+  function updateProfileHabits() {
+    const me = getSession();
+    const habits = getHabitsFromUser(me);
+    document.querySelectorAll('#profile-overlay .pf-habits').forEach(el => {
+      if (habits.length) renderChips(el, habits);
+      else el.innerHTML = '';
+    });
+    document.querySelectorAll('#profile-overlay .pf-habits-empty').forEach(el => {
+      el.style.display = habits.length ? 'none' : 'block';
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    ensureProfileHabitsUI();
+    updateProfileHabits();
+  });
+  document.addEventListener('click', (e) => {
+    const link = e.target.closest('#ez-profile-link');
+    if (link) {
+      setTimeout(() => { ensureProfileHabitsUI(); updateProfileHabits(); }, 0);
+    }
+  });
+
+  function initialsFrom(nameOrEmail) {
+    if (!nameOrEmail) return '?';
+    const base = String(nameOrEmail).split('@')[0];
+    const parts = base.replace(/[_\-.]+/g, ' ').trim().split(/\s+/);
+    const letters = parts.slice(0, 2).map(p => (p[0] || '').toUpperCase()).join('');
+    return letters || (base[0] || '?').toUpperCase();
+  }
+  function computeMatch(aHabits, bHabits) {
+    const A = new Set((aHabits || []).map(s => String(s).toLowerCase()));
+    const B = new Set((bHabits || []).map(s => String(s).toLowerCase()));
+    if (!A.size || !B.size) return 80;
+    let overlap = 0; B.forEach(x => { if (A.has(x)) overlap++; });
+    const score = Math.round((overlap / Math.max(A.size, B.size)) * 100);
+    return Math.max(60, Math.min(98, score));
+  }
+  function createMateCard(user, meHabits) {
+    const uHabits = getHabitsFromUser(user);
+    const match = computeMatch(meHabits, uHabits);
+    const ini = initialsFrom(user.username || user.email);
+
     const card = document.createElement('div');
     card.className = 'card-item';
     card.style.border = '1px solid rgba(37, 99, 235, 0.2)';
     card.innerHTML =
       '<div class="flex items-center" style="margin-bottom:1rem; gap:1rem;">' +
-        '<div style="width:4rem;height:4rem;border-radius:9999px;border:2px solid var(--primary);background-color:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1.25rem;">'+ini+'</div>' +
-        '<div><h3 style="margin:0 0 .125rem;">'+(u.username||'User')+' ('+match+'% Match)</h3>' +
-        '<p style="font-size:.875rem;color:var(--secondary);font-weight:500;">Verified User</p></div></div>' +
-      '<p style="color:var(--gray-600);margin-bottom:1rem;font-size:.9rem;">'+(u.bio||'“EzMate member.”')+'</p>' +
+        '<div style="width:4rem;height:4rem;border-radius:9999px;border:2px solid var(--primary);' +
+                 'background-color:var(--primary);color:#fff;display:flex;align-items:center;' +
+                 'justify-content:center;font-weight:700;font-size:1.25rem;">' + ini + '</div>' +
+        '<div>' +
+          '<h3 style="margin:0 0 .125rem;">' + (user.username || 'User') + ' (' + match + '% Match)</h3>' +
+          '<p style="font-size:.875rem;color:var(--secondary);font-weight:500;">Verified User</p>' +
+        '</div>' +
+      '</div>' +
+      '<p style="color:var(--gray-600);margin-bottom:1rem;font-size:.9rem;">' + (user.bio || '“EzMate member.”') + '</p>' +
       '<div class="mate-tags" style="display:flex;flex-wrap:wrap;gap:.5rem;font-size:.875rem;"></div>' +
       '<button class="mate-btn rounded-lg shadow-md" type="button">View Profile</button>';
-    const wrap = card.querySelector('.mate-tags');
-    if(tags.length) tags.forEach(t=>{ const s=document.createElement('span'); s.className='mate-tag'; s.textContent=t; wrap.appendChild(s); });
-    else { const s=document.createElement('span'); s.className='mate-tag'; s.textContent='No habits set'; wrap.appendChild(s); }
+
+    const tagWrap = card.querySelector('.mate-tags');
+    if (uHabits.length) renderChips(tagWrap, uHabits.slice(0, 6));
+    else {
+      const span = document.createElement('span');
+      span.className = 'mate-tag';
+      span.textContent = 'No habits set';
+      tagWrap.appendChild(span);
+    }
     return card;
   }
 
-  async function renderHomeUsers(){
-    const grid = document.getElementById('mates-grid');
-    if(!grid) return;
-    const me = JSON.parse(sessionStorage.getItem('ezmate_current_user') || 'null') || {};
-    const users = await fetchUsersFromCloud();
-    const meEmail = (me.email||'').toLowerCase();
-    const meHabits = Array.isArray(me.habits) ? me.habits : [];
-    const others = users.filter(u => String(u.email||'').toLowerCase() !== meEmail);
+  async function renderHomeUsers() {
+    const grid = document.querySelector('#potential-mates .card-grid');
+    if (!grid) return;
 
-    if(!others.length) return; // keep demo cards
+    const users = loadUsers(); // (this may be overridden by remote-first layer below)
+    const me = (function(){ try{return JSON.parse(sessionStorage.getItem('ezmate_current_user')||'null')}catch{return null} })();
+    const meEmail = (me && me.email) ? String(me.email).toLowerCase() : null;
+    const others = users.filter(u => {
+      const e = (u && u.email) ? String(u.email).toLowerCase() : '';
+      return !meEmail || e !== meEmail;
+    });
+
+    if (!others.length) return; // keep demo cards
+    const meHabits = (me && Array.isArray(me.habits)) ? me.habits : [];
+    grid.innerHTML = '';
+    others.slice(0, 6).forEach(u => grid.appendChild(createMateCard(u, meHabits)));
+  }
+
+  document.addEventListener('DOMContentLoaded', renderHomeUsers);
+})();
+</script>
+
+<!-- Second pass (kept) that syncs exact demo % if needed -->
+<script>
+/* EzMate Home — Make "Potential Mates" match % exactly mirror roommates.html where applicable */
+(function(){
+  const USERS_KEY = 'ezmate_users';
+  const SESSION_KEY = 'ezmate_current_user';
+
+  const FALLBACK_MATCH = {
+    'jane s.': 92, 'michael p.': 88, 'sarah t.': 95, 'aisha m.': 90,
+    'priya k.': 91, 'arjun r.': 86, 'nisha s.': 89, 'omar h.': 82
+  };
+
+  const DEMO = [
+    { username:'Jane S.', email:'jane@example.com', bio:'Quiet 9–5, very clean, near campus.', habits:['Morning person','Very clean','Budget matched'] },
+    { username:'Michael P.', email:'michael@example.com', bio:'Loves cooking, social on weekends.', habits:['Night owl','Loves cooking','Moderately social'] },
+    { username:'Sarah T.', email:'sarah@example.com', bio:'Very tidy, quiet study time.', habits:['Study focused','On-time rent','Quiet lifestyle'] },
+    { username:'Aisha M.', email:'aisha@example.com', bio:'WFH most days; needs quiet for calls.', habits:['Work from home','Tidy','Long-term'] },
+    { username:'Priya K.', email:'priya@example.com', bio:'Early gym, clean kitchen, quiet weekdays.', habits:['Early riser','Very clean','Meal prep'] },
+    { username:'Arjun R.', email:'arjun@example.com', bio:'Hybrid work, minimalist, hikes weekends.', habits:['Minimalist','Hiker'] },
+    { username:'Nisha S.', email:'nisha@example.com', bio:'Quiet weekdays, balcony garden.', habits:['Plant lover','Tidy'] },
+    { username:'Omar H.', email:'omar@example.com', bio:'Barista + CS student; focus nights.', habits:['Coffee friendly','Focus nights'] }
+  ];
+
+  function loadUsers(){ try { return JSON.parse(localStorage.getItem(USERS_KEY))||[]; } catch { return []; } }
+  function loadSession(){ try { return JSON.parse(sessionStorage.getItem(SESSION_KEY)||'null'); } catch { return null; } }
+
+  function getHabitsFromUser(u){
+    if (!u) return [];
+    if (Array.isArray(u.habits)) return u.habits.filter(Boolean).map(String);
+    if (u.preferences && Array.isArray(u.preferences.habits)) return u.preferences.habits.filter(Boolean).map(String);
+    if (typeof u.habits === 'string') return u.habits.split(',').map(s=>s.trim()).filter(Boolean);
+    return [];
+  }
+
+  function initialsFrom(nameOrEmail){
+    if (!nameOrEmail) return '?';
+    const base = String(nameOrEmail).split('@')[0];
+    const parts = base.replace(/[_\-.]+/g,' ').trim().split(/\s+/);
+    const letters = parts.slice(0,2).map(p => (p[0]||'').toUpperCase()).join('');
+    return letters || (base[0]||'?').toUpperCase();
+  }
+
+  function computeOverlapMatch(user, meHabits){
+    const A = new Set((meHabits||[]).map(s=>String(s).toLowerCase()));
+    const B = new Set(getHabitsFromUser(user).map(s=>String(s).toLowerCase()));
+    if (!A.size || !B.size) return 80;
+    let overlap = 0; B.forEach(x => { if (A.has(x)) overlap++; });
+    const score = Math.round((overlap / Math.max(A.size, B.size)) * 100);
+    return Math.max(0, Math.min(100, score));
+  }
+
+  function createMateCard(user, matchPercent){
+    const uHabits = getHabitsFromUser(user);
+    const ini = initialsFrom(user.username || user.email);
+
+    const card = document.createElement('div');
+    card.className = 'card-item';
+    card.style.border = '1px solid rgba(37, 99, 235, 0.2)';
+    card.innerHTML =
+      '<div class="flex items-center" style="margin-bottom:1rem; gap:1rem;">' +
+        '<div style="width:4rem;height:4rem;border-radius:9999px;border:2px solid var(--primary);' +
+                  'background-color:var(--primary);color:#fff;display:flex;align-items:center;' +
+                  'justify-content:center;font-weight:700;font-size:1.25rem;">' + ini + '</div>' +
+        '<div>' +
+          '<h3 style="margin:0 0 .125rem;">' + (user.username || 'User') + ' (' + matchPercent + '% Match)</h3>' +
+          '<p style="font-size:.875rem;color:var(--secondary);font-weight:500;">Verified User</p>' +
+        '</div>' +
+      '</div>' +
+      '<p style="color:var(--gray-600);margin-bottom:1rem;font-size:.9rem;">' +
+        (user.bio || '“EzMate member.”') + '</p>' +
+      '<div class="mate-tags" style="display:flex;flex-wrap:wrap;gap:.5rem;font-size:.875rem;"></div>' +
+      '<button class="mate-btn rounded-lg shadow-md" type="button">View Profile</button>';
+
+    const tagWrap = card.querySelector('.mate-tags');
+    tagWrap.innerHTML = '';
+    (uHabits.length ? uHabits.slice(0,6) : ['No habits set']).forEach(txt => {
+      const span = document.createElement('span');
+      span.className = 'mate-tag';
+      span.textContent = String(txt);
+      tagWrap.appendChild(span);
+    });
+
+    return card;
+  }
+
+  async function getRoommatesMatchMap(){
+    try {
+      const res = await fetch('roommates.html', { cache: 'no-store' });
+      if (!res.ok) throw new Error('fetch failed');
+      const html = await res.text();
+      const doc = new DOMParser().parseFromString(html, 'text/html');
+      const map = {};
+      doc.querySelectorAll('.card').forEach(card => {
+        const nameEl = card.querySelector('.name');
+        const matchEl = card.querySelector('.match');
+        if (!nameEl || !matchEl) return;
+        const name = nameEl.textContent.trim().toLowerCase();
+        const m = matchEl.textContent.match(/(\d+)\s*%/);
+        if (name && m) map[name] = parseInt(m[1], 10);
+      });
+      if (Object.keys(map).length === 0) return { ...FALLBACK_MATCH };
+      return map;
+    } catch {
+      return { ...FALLBACK_MATCH };
+    }
+  }
+
+  function normalizedName(u){
+    return String(u.username || u.name || '')
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g,' ')
+  }
+
+  async function render(){
+    const grid = document.querySelector('#potential-mates .card-grid');
+    if (!grid) return;
+
+    const me = loadSession();
+    const users = loadUsers();
+    const meEmail = me && me.email ? String(me.email).toLowerCase() : '';
+    const others = users.filter(u => String(u.email||'').toLowerCase() !== meEmail);
+    const meHabits = getHabitsFromUser(me);
+
+    const MATCH_MAP = await getRoommatesMatchMap();
+    const DEMO_OR_REAL = others.length ? others : DEMO;
 
     grid.innerHTML = '';
-    others.slice(0,6).forEach(u=>{
-      const match = computeOverlapMatch(meHabits, u);
-      grid.appendChild(createCard(u, match));
+    DEMO_OR_REAL.slice(0,6).forEach(u => {
+      let match;
+      if (typeof u.match === 'number') match = Math.round(u.match);
+      else if (typeof u.matchScore === 'number') match = Math.round(u.matchScore);
+      else if (typeof u.compatibility === 'number') match = Math.round(u.compatibility);
+      else {
+        const key = normalizedName(u);
+        match = MATCH_MAP[key];
+        if (typeof match !== 'number') match = computeOverlapMatch(u, meHabits);
+      }
+      grid.appendChild(createMateCard(u, match));
     });
   }
 
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded', renderHomeUsers);
-  else renderHomeUsers();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', render);
+  } else {
+    render();
+  }
+})();
+</script>
+
+<!-- ====== REMOTE-FIRST DATA LAYER (NEW) — uses /api/sheet?table=users, falls back to local ====== -->
+<script>
+(function(){
+  const USERS_KEY = 'ezmate_users';
+  const API_BASE = '/api/sheet'; // your Vercel serverless proxy
+  // override existing loadUsers() to try remote first, then local fallback
+  window.loadUsers = async function loadUsers(){
+    try{
+      const res = await fetch(`${API_BASE}?table=users`, { method:'GET', cache:'no-store' });
+      if(!res.ok) throw new Error('remote failed');
+      const rows = await res.json();
+      // Expecting array of objects with at least: email, username, phone, habits (comma or array)
+      const normalized = (Array.isArray(rows)?rows:[]).map(r=>{
+        let habits = r.habits;
+        if (typeof habits === 'string') {
+          habits = habits.split(',').map(s=>s.trim()).filter(Boolean);
+        } else if (!Array.isArray(habits)) {
+          habits = [];
+        }
+        return {
+          email: r.email || r.Email || '',
+          username: r.username || r.Username || '',
+          phone: r.phone || r.Phone || '',
+          bio: r.bio || r.Bio || '',
+          habits
+        };
+      });
+      // cache locally to keep the rest of the page logic unchanged
+      localStorage.setItem(USERS_KEY, JSON.stringify(normalized));
+      return normalized;
+    }catch(e){
+      // fallback to local cache if remote is unavailable/forbidden
+      try{
+        return JSON.parse(localStorage.getItem(USERS_KEY)) || [];
+      }catch{
+        return [];
+      }
+    }
+  };
+
+  // Kick a background refresh so above sections get latest soon after load
+  (async () => {
+    try { await window.loadUsers(); } catch {}
+  })();
 })();
 </script>
 
 </body>
 </html>
+
