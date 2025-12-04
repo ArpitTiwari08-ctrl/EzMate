@@ -110,16 +110,49 @@
   </div>
 
   <script>
-    const USERS_KEY = 'ezmate_users';
+    const USERS_KEY   = 'ezmate_users';
     const SESSION_KEY = 'ezmate_current_user';
+    const SHEETBEST_URL = 'https://api.sheetbest.com/sheets/578f6242-bd5a-4373-8096-2a7c7c6bae62';
 
-    function loadUsers(){ try { return JSON.parse(localStorage.getItem(USERS_KEY))||[] } catch { return [] } }
+    function loadUsersLocal(){ try { return JSON.parse(localStorage.getItem(USERS_KEY))||[] } catch { return [] } }
+    function saveUsersLocal(users){ try { localStorage.setItem(USERS_KEY, JSON.stringify(users)); } catch {} }
     function getSession(){ try { return JSON.parse(sessionStorage.getItem(SESSION_KEY)||'null') } catch { return null } }
+
+    // Parse habits whether stored as JSON array string or comma-list
+    function parseHabitsField(val){
+      if (!val) return [];
+      if (Array.isArray(val)) return val.filter(Boolean).map(String);
+      if (typeof val === 'string') {
+        try { const arr = JSON.parse(val); if (Array.isArray(arr)) return arr.filter(Boolean).map(String); } catch {}
+        return val.split(',').map(s=>s.trim()).filter(Boolean);
+      }
+      return [];
+    }
+
+    // SheetBest fetch (returns null on network error)
+    async function fetchUsersFromSheet(){
+      try{
+        const res = await fetch(SHEETBEST_URL, { cache:'no-store' });
+        if(!res.ok) throw new Error('sheet fetch failed');
+        const rows = await res.json();
+        return (Array.isArray(rows)?rows:[]).map(r => ({
+          email: (r.email||'').trim(),
+          username: (r.username||'').trim() || (r.email||'').split('@')[0],
+          phone: (r.phone||'').replace(/\D/g,'').slice(-10),
+          bio: r.bio || 'No bio yet. This user recently joined EzMate.',
+          role: r.role || 'Verified User',
+          avatarUrl: r.avatarUrl || '',
+          habits: parseHabitsField(r.habits)
+        })).filter(u=>u.email);
+      }catch(e){
+        return null;
+      }
+    }
 
     // Basic Jaccard similarity on habits (0..1)
     function habitsSimilarity(a = [], b = []) {
-      const A = new Set((a||[]).map(x=>x.toLowerCase()));
-      const B = new Set((b||[]).map(x=>x.toLowerCase()));
+      const A = new Set((a||[]).map(x=>String(x).toLowerCase()));
+      const B = new Set((b||[]).map(x=>String(x).toLowerCase()));
       if (!A.size && !B.size) return 0;
       let inter = 0;
       A.forEach(x=>{ if (B.has(x)) inter++; });
@@ -128,20 +161,25 @@
     }
 
     function initialFromName(name='?'){
-      const t = (name.trim().split(/\s+/)[0]||'?').charAt(0).toUpperCase();
+      const t = (String(name).trim().split(/\s+/)[0]||'?').charAt(0).toUpperCase();
       return t || '?';
     }
 
+    // NOTE: added data-email and data-phone so Connect can use them
     function cardHtml(user, scorePct){
-      const tags = (user.habits||[]).slice(0,3); // show first few as tags
-      const role = (user.role) || (user.email?.includes('student') ? 'Verified Student' : 'Verified User');
-      const bio  = (user.bio) || 'No bio yet. This user recently joined EzMate.';
+      const tags = (user.habits||[]).slice(0,3);
+      const role = user.role || (user.email?.includes('student') ? 'Verified Student' : 'Verified User');
+      const bio  = user.bio || 'No bio yet. This user recently joined EzMate.';
       const avatarColor = ['#2563EB','#10B981','#4F46E5','#1D4ED8','#0EA5E9','#EA580C','#7C3AED','#0F766E'][Math.floor(Math.random()*8)];
       return `
-      <article class="card" data-name="${user.username||'-'}" data-role="${role}"
+      <article class="card"
+               data-name="${user.username||'-'}"
+               data-role="${role}"
                data-tags="${(user.habits||[]).join(' ').toLowerCase()}"
                data-bio="${bio}"
-               data-profile="${bio}">
+               data-profile="${bio}"
+               data-email="${user.email||''}"
+               data-phone="${user.phone||''}">
         <div class="avatar" style="background:${avatarColor}">${initialFromName(user.username||user.email||'?')}</div>
         <div>
           <div class="head">
@@ -163,14 +201,28 @@
       </article>`;
     }
 
-    function renderList(){
+    // Unified loader: prefer SheetBest, else local
+    async function loadUsersUnified(){
+      const sheetUsers = await fetchUsersFromSheet();
+      if (sheetUsers && sheetUsers.length){
+        // refresh local cache for offline pages
+        saveUsersLocal(sheetUsers);
+        return sheetUsers;
+      }
+      return loadUsersLocal();
+    }
+
+    async function renderList(){
       const list = document.getElementById('list');
       const session = getSession();
       const meEmail = (session?.email||'').toLowerCase();
-      const meHabits = session?.habits || (loadUsers().find(u=>u.email?.toLowerCase()===meEmail)?.habits || []);
+      const meHabits = session?.habits || (loadUsersLocal().find(u=> (u.email||'').toLowerCase()===meEmail)?.habits || []);
+
+      // prefer shared users
+      const users = await loadUsersUnified();
 
       // Others only
-      const others = loadUsers().filter(u => (u.email||'').toLowerCase() !== meEmail);
+      const others = users.filter(u => (u.email||'').toLowerCase() !== meEmail);
 
       if (!others.length){
         list.innerHTML = `<div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px;color:#334155">
@@ -179,13 +231,16 @@
         return;
       }
 
-      // Sort by compatibility desc
+      // Sort by compatibility desc (same logic used on index: Jaccard-based)
       const enriched = others.map(u => {
         const sim = habitsSimilarity(meHabits, u.habits || []);
         return { user: u, pct: Math.round(sim*100) };
       }).sort((a,b)=>b.pct - a.pct);
 
       list.innerHTML = enriched.map(x => cardHtml(x.user, x.pct)).join('');
+
+      // After render, (re)wire search snapshot
+      if (typeof wireSearchSnapshot === 'function') wireSearchSnapshot();
     }
 
     // Search
@@ -198,29 +253,31 @@
         card.dataset.bio
       ].map(normalize).join(' ');
     }
+    let __searchCache = null;
+    function wireSearchSnapshot(){
+      const cards = Array.from(document.querySelectorAll('.card'));
+      __searchCache = new Map(cards.map(c => [c, getSearchText(c)]));
+    }
     function wireSearch(){
       const searchEl = document.getElementById('search');
       const list = document.getElementById('list');
-      let cache = null;
-      function snapshot(){
-        const cards = Array.from(document.querySelectorAll('.card'));
-        cache = new Map(cards.map(c => [c, getSearchText(c)]));
-      }
+
       function applySearch(q){
         const needle = normalize(q).trim();
         const cards = Array.from(document.querySelectorAll('.card'));
         let visible = 0;
         cards.forEach(card => {
-          const hay = cache.get(card);
+          const hay = __searchCache ? __searchCache.get(card) : getSearchText(card);
           const show = !needle || hay.includes(needle);
           card.style.display = show ? 'grid' : 'none';
           if (show) visible++;
         });
         list.setAttribute('data-count', visible);
       }
+
       searchEl.addEventListener('input', (e)=>applySearch(e.target.value));
-      // first snapshot after render
-      setTimeout(()=>{ snapshot(); applySearch(''); }, 0);
+      // first snapshot after initial render
+      setTimeout(()=>{ wireSearchSnapshot(); applySearch(''); }, 0);
     }
 
     // Modal (View Profile)
@@ -241,11 +298,11 @@
       document.body.style.overflow = '';
     }
 
-    // Global click handlers for connect/view
+    // Global click handlers for connect/view (kept; overridden by capture handler below)
     document.addEventListener('click', (e)=>{
       const connect = e.target.closest('.js-connect');
       if (connect) {
-        // Initiate phone call for every user
+        // old behavior (fixed number) – will be stopped by capture-phase handler below
         window.location.href = 'tel:9310281596';
         return;
       }
@@ -263,8 +320,10 @@
     document.addEventListener('keydown', (e)=>{ if (e.key === 'Escape' && modal.classList.contains('show')) closeModal(); });
 
     // Init
-    renderList();
-    wireSearch();
+    (async function init(){
+      await renderList();
+      wireSearch();
+    })();
   </script>
 
   <!-- ADDED: Connect button should call the profile owner's registered phone -->
