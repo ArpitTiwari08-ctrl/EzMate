@@ -359,78 +359,101 @@
     })();
   </script>
 
-  <!-- Remote data layer (with Google Sheets fallback) -->
-  <script>
-    // Primary: your proxy (if/when available)
-    const API_BASE = '/api/sheet';
+ <!-- Remote data layer (Google Sheets ONLY, no proxy) -->
+<script>
+  // ======= REQUIRED: your Sheet must be viewable by anyone (or Published to web) =======
+  // Spreadsheet ID from the URL:
+  // https://docs.google.com/spreadsheets/d/1ONVMDp_ljGsupJVrlVZ4-ueSafWCrxKQHhwruiJHrxM/edit
+  const SPREADSHEET_ID = '1ONVMDp_ljGsupJVrlVZ4-ueSafWCrxKQHhwruiJHrxM';
+  const USERS_SHEET_NAME = 'users';
 
-    // Fallback: read-only direct Google Sheets (gviz) — needs sheet to be public/viewable
-    const SPREADSHEET_ID = '1ONVMDp_ljGsupJVrlVZ4-ueSafWCrxKQHhwruiJHrxM';
-    const USERS_SHEET_NAME = 'users';
-    const GVIZ_URL =
-      `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(USERS_SHEET_NAME)}`;
+  // Robust GVIZ URLs
+  const GVIZ_JSON_URL =
+    `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(USERS_SHEET_NAME)}`;
+  const GVIZ_CSV_URL =
+    `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(USERS_SHEET_NAME)}`;
 
-    async function apiGetUsersViaProxy(){
-      const res = await fetch(`${API_BASE}?table=users`, { method:'GET', cache:'no-store' });
-      if(!res.ok) throw new Error('GET /api/sheet failed');
-      const rows = await res.json();
-      return (Array.isArray(rows) ? rows : []).map(r => ({
-        email: r.email || r.Email || '',
-        username: r.username || r.Username || '',
-        phone: r.phone || r.Phone || '',
-        salt:  r.salt || r.Salt || '',
-        hash:  r.hash || r.Hash || '',
-        createdAt: r.createdAt || r.CreatedAt || r.created_at || '',
-        bio: r.bio || r.Bio || '',
-        habits: normHabits(r.habits ?? r.Habits)
-      }));
-    }
+  // Parse the weird GVIZ JSON (it wraps the JSON in setResponse(...))
+  function parseGvizJson(text){
+    // Try to extract the object inside setResponse(...)
+    const m = text.match(/setResponse\(([\s\S]*?)\);\s*$/);
+    const jsonStr = m ? m[1] : text.substring(text.indexOf('{'), text.lastIndexOf(')'));
+    return JSON.parse(jsonStr);
+  }
 
-    async function apiGetUsersViaGviz(){
-      const res = await fetch(GVIZ_URL, { cache: 'no-store' });
-      const text = await res.text();
-      // gviz returns JS-wrapped JSON: google.visualization.Query.setResponse({...});
-      const json = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf(')')));
+  function normalizeRowObject(obj){
+    // Normalize possible header-case differences and CSV habits
+    const get = (k) => obj[k] ?? obj[k[0].toUpperCase() + k.slice(1)] ?? '';
+    const habitsVal = get('habits');
+    const habits = Array.isArray(habitsVal)
+      ? habitsVal
+      : (typeof habitsVal === 'string'
+          ? habitsVal.split(',').map(s=>s.trim()).filter(Boolean)
+          : []);
+    return {
+      email: String(get('email')).trim(),
+      username: String(get('username')).trim(),
+      phone: String(get('phone')).trim(),
+      salt: String(get('salt')),
+      hash: String(get('hash')),
+      createdAt: String(get('createdAt') || get('created_at')),
+      bio: String(get('bio')),
+      habits
+    };
+  }
 
-      const cols = (json.table.cols || []).map(c => (c.label || '').trim());
-      const rows = (json.table.rows || []).map(r => {
-        const obj = {};
-        r.c.forEach((cell, i) => {
-          const key = (cols[i] || '').trim();
-          if (!key) return;
-          obj[key] = cell ? cell.v : '';
-        });
-        return obj;
+  async function apiGetUsersViaGvizJson(){
+    const res = await fetch(GVIZ_JSON_URL, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`GVIZ JSON HTTP ${res.status}`);
+    const text = await res.text();
+
+    const json = parseGvizJson(text);
+    const cols = (json.table?.cols || []).map(c => (c.label || '').trim());
+    const rows = (json.table?.rows || []).map(r => {
+      const o = {};
+      (r.c || []).forEach((cell, i) => {
+        const key = cols[i] || '';
+        if (!key) return;
+        o[key] = cell ? cell.v : '';
       });
+      return o;
+    });
+    return rows.map(normalizeRowObject);
+  }
 
-      return rows.map(r => {
-        const habits = Array.isArray(r.habits)
-          ? r.habits
-          : (typeof r.habits === 'string'
-              ? r.habits.split(',').map(s=>s.trim()).filter(Boolean)
-              : []);
-        return {
-          email: String(r.email || r.Email || '').trim(),
-          username: String(r.username || r.Username || '').trim(),
-          phone: String(r.phone || r.Phone || '').trim(),
-          salt: String(r.salt || r.Salt || ''),
-          hash: String(r.hash || r.Hash || ''),
-          createdAt: String(r.createdAt || r.CreatedAt || r.created_at || ''),
-          bio: String(r.bio || r.Bio || ''),
-          habits
-        };
-      });
-    }
+  async function apiGetUsersViaCsvFallback(){
+    const res = await fetch(GVIZ_CSV_URL, { cache: 'no-store' });
+    if (!res.ok) throw new Error(`GVIZ CSV HTTP ${res.status}`);
+    const text = await res.text();
 
-    // Unified getter: try proxy first, fall back to public Sheets
-    async function apiGetUsers(){
-      try {
-        return await apiGetUsersViaProxy();
-      } catch (e) {
-        console.warn('Proxy failed, falling back to Google Sheets gviz:', e);
-        return await apiGetUsersViaGviz();
-      }
+    // very small CSV parser (handles simple cases)
+    const lines = text.trim().split(/\r?\n/);
+    if (!lines.length) return [];
+    const headers = lines[0].split(',').map(h => h.trim());
+    const out = [];
+    for (let i = 1; i < lines.length; i++){
+      const vals = lines[i].split(',').map(v => v.trim());
+      const obj = {};
+      headers.forEach((h, idx) => obj[h] = vals[idx] ?? '');
+      out.push(normalizeRowObject(obj));
     }
-  </script>
+    return out;
+  }
+
+  // Single function the rest of the page uses.
+  // Tries GVIZ JSON first, then CSV as a fallback.
+  async function apiGetUsers(){
+    try {
+      const users = await apiGetUsersViaGvizJson();
+      if (Array.isArray(users)) return users;
+      throw new Error('GVIZ JSON returned non-array');
+    } catch (e) {
+      console.warn('GVIZ JSON failed, trying CSV fallback:', e);
+      return await apiGetUsersViaCsvFallback();
+    }
+  }
+</script>
+
 </body>
 </html>
+
