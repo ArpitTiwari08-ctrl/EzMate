@@ -929,6 +929,42 @@
 
 <!-- Always-available access to roommates -->
 <a class="fab-mates" href="roommates.html" aria-label="Open Meet Mates">Meet Mates</a>
+
+<!-- NEW (minimal): hydrate users from Google Sheet on load -->
+<script>
+(function(){
+  const SHEET_GET = "https://api.sheetbest.com/sheets/578f6242-bd5a-4373-8096-2a7c7c6bae62";
+  const USERS_KEY = "ezmate_users";
+
+  function loadUsers(){ try { return JSON.parse(localStorage.getItem(USERS_KEY))||[] } catch { return [] } }
+  function saveUsers(x){ localStorage.setItem(USERS_KEY, JSON.stringify(x)); }
+
+  function mergeRemote(rows){
+    const local = loadUsers();
+    const byEmail = new Map(local.map(u => [String(u.email||"").toLowerCase(), u]));
+    rows.forEach(r => {
+      const email = String(r.email||"").toLowerCase();
+      if(!email) return;
+      if(!byEmail.has(email)){
+        const habits = typeof r.habits === "string" ? r.habits.split(",").map(s=>s.trim()).filter(Boolean) : (r.habits||[]);
+        byEmail.set(email, { email: r.email, username: r.username || r.name || r.email.split("@")[0], phone: (r.phone||"").replace(/\D/g,"").slice(-10), habits, createdAt: r.createdAt || new Date().toISOString() });
+      }
+    });
+    saveUsers(Array.from(byEmail.values()));
+  }
+
+  document.addEventListener("DOMContentLoaded", async () => {
+    try{
+      const res = await fetch(SHEET_GET, { cache: "no-store" });
+      if(res.ok){
+        const rows = await res.json();
+        if(Array.isArray(rows)) mergeRemote(rows);
+      }
+    }catch{/* ignore network issues */}
+  });
+})();
+</script>
+
 <script>
 (function(){
   // If you already have a dropdown link with this ID, it will “just work”
@@ -1068,8 +1104,8 @@
     return Math.max(60, Math.min(98, score));
   }
   function createMateCard(user, meHabits) {
-    const uHabits = (Array.isArray(user.habits) ? user.habits : []);
-    const match = computeMatch((getSession()?.habits)||[], uHabits);
+    const uHabits = getHabitsFromUser(user);
+    const match = computeMatch(meHabits, uHabits);
     const ini = initialsFrom(user.username || user.email);
 
     const card = document.createElement('div');
@@ -1090,14 +1126,8 @@
       '<button class="mate-btn rounded-lg shadow-md" type="button">View Profile</button>';
 
     const tagWrap = card.querySelector('.mate-tags');
-    if (uHabits.length) {
-      uHabits.slice(0, 6).forEach(txt => {
-        const span = document.createElement('span');
-        span.className = 'mate-tag';
-        span.textContent = String(txt);
-        tagWrap.appendChild(span);
-      });
-    } else {
+    if (uHabits.length) renderChips(tagWrap, uHabits.slice(0, 6));
+    else {
       const span = document.createElement('span');
       span.className = 'mate-tag';
       span.textContent = 'No habits set';
@@ -1120,7 +1150,7 @@
 
     if (!others.length) return; // keep your 3 demo cards
 
-    const meHabits = (me && Array.isArray(me.habits)) ? me.habits : [];
+    const meHabits = getHabitsFromUser(me);
     grid.innerHTML = ''; // replace demo with real users
     others.slice(0, 6).forEach(u => grid.appendChild(createMateCard(u, meHabits)));
   }
@@ -1296,7 +1326,7 @@
     { username:'Arjun R.', email:'arjun@example.com', bio:'Hybrid work, minimalist, hikes weekends.', habits:['Minimalist','Hiker'] },
     { username:'Nisha S.', email:'nisha@example.com', bio:'Quiet weekdays, balcony garden.', habits:['Plant lover','Tidy'] },
     { username:'Omar H.', email:'omar@example.com', bio:'Barista + CS student; focus nights.', habits:['Coffee friendly','Focus nights'] }
-  ];
+  };
 
   // --- helpers
   function loadUsers(){ try { return JSON.parse(localStorage.getItem(USERS_KEY))||[]; } catch { return []; } }
@@ -1433,138 +1463,6 @@
   }
 })();
 </script>
-
-<!-- ===================  ADDED SCRIPT STARTS HERE  =================== -->
-<script>
-/* SheetBest sync: load shared users and render (non-destructive) */
-(function(){
-  const SHEETBEST_URL = 'https://api.sheetbest.com/sheets/578f6242-bd5a-4373-8096-2a7c7c6bae62';
-  const USERS_KEY = 'ezmate_users';
-  const SESSION_KEY = 'ezmate_current_user';
-
-  function parseHabits(val){
-    if (!val) return [];
-    if (Array.isArray(val)) return val.filter(Boolean).map(String);
-    if (typeof val === 'string') {
-      // Try JSON array first
-      try {
-        const arr = JSON.parse(val);
-        if (Array.isArray(arr)) return arr.filter(Boolean).map(String);
-      } catch {}
-      // fallback to comma list
-      return val.split(',').map(s => s.trim()).filter(Boolean);
-    }
-    return [];
-  }
-
-  function normalizeRow(r){
-    return {
-      email: (r.email||'').trim(),
-      username: (r.username||'').trim() || (r.email||'').split('@')[0],
-      phone: (r.phone||'').trim(),
-      bio: (r.bio||'').trim(),
-      role: (r.role||'').trim() || 'Verified User',
-      avatarUrl: (r.avatarUrl||'').trim(),
-      habits: parseHabits(r.habits),
-      // keep salt/hash if you stored them, but not used for UI here
-      salt: r.salt || '',
-      hash: r.hash || '',
-      createdAt: r.createdAt || ''
-    };
-  }
-
-  async function syncUsers(){
-    try{
-      const res = await fetch(SHEETBEST_URL, { cache: 'no-store' });
-      if (!res.ok) throw new Error('sheetbest fetch failed');
-      const rows = await res.json();
-      const users = (Array.isArray(rows) ? rows : []).map(normalizeRow).filter(u => u.email);
-      // Persist to localStorage so existing renderers can use them
-      localStorage.setItem(USERS_KEY, JSON.stringify(users));
-      // After storing, re-render "Potential EzMates" right away (without touching your other logic)
-      renderPotentialFromLocal();
-      // Also let other pages/scripts know
-      window.dispatchEvent(new CustomEvent('ezmate-users-updated'));
-    }catch(err){
-      // fail silent to avoid breaking page
-      // console.warn('SheetBest sync failed:', err);
-    }
-  }
-
-  function getSession(){
-    try { return JSON.parse(sessionStorage.getItem(SESSION_KEY) || 'null'); } catch { return null; }
-  }
-  function getUsers(){
-    try { return JSON.parse(localStorage.getItem(USERS_KEY) || '[]'); } catch { return []; }
-  }
-  function getHabits(u){ return Array.isArray(u?.habits) ? u.habits : []; }
-  function initials(s){
-    if(!s) return '?';
-    const base = String(s).split('@')[0];
-    const parts = base.replace(/[_\-.]+/g,' ').trim().split(/\s+/);
-    const letters = parts.slice(0,2).map(p => (p[0]||'').toUpperCase()).join('');
-    return letters || (base[0]||'?').toUpperCase();
-  }
-  function computeMatch(a, b){
-    const A = new Set((a||[]).map(s=>String(s).toLowerCase()));
-    const B = new Set((b||[]).map(s=>String(s).toLowerCase()));
-    if (!A.size || !B.size) return 80;
-    let overlap = 0; B.forEach(x=>{ if (A.has(x)) overlap++; });
-    const score = Math.round((overlap/Math.max(A.size,B.size))*100);
-    return Math.max(0, Math.min(100, score));
-  }
-  function renderPotentialFromLocal(){
-    const grid = document.querySelector('#potential-mates .card-grid');
-    if (!grid) return;
-
-    const me = getSession();
-    const meEmail = me?.email ? String(me.email).toLowerCase() : '';
-    const meHabits = Array.isArray(me?.habits) ? me.habits : [];
-
-    const users = getUsers().filter(u => String(u.email||'').toLowerCase() !== meEmail);
-    if (!users.length) return; // keep your demo cards if sheet is empty
-
-    grid.innerHTML = '';
-    users.slice(0,6).forEach(u => {
-      const match = computeMatch(meHabits, getHabits(u));
-      const card = document.createElement('div');
-      card.className = 'card-item';
-      card.style.border = '1px solid rgba(37, 99, 235, 0.2)';
-      card.innerHTML =
-        '<div class="flex items-center" style="margin-bottom:1rem; gap:1rem;">' +
-          '<div style="width:4rem;height:4rem;border-radius:9999px;border:2px solid var(--primary);' +
-                    'background-color:var(--primary);color:#fff;display:flex;align-items:center;' +
-                    'justify-content:center;font-weight:700;font-size:1.25rem;">' + initials(u.username||u.email) + '</div>' +
-          '<div>' +
-            '<h3 style="margin:0 0 .125rem;">' + (u.username||'User') + ' (' + match + '% Match)</h3>' +
-            '<p style="font-size:.875rem;color:var(--secondary);font-weight:500;">' + (u.role||'Verified User') + '</p>' +
-          '</div>' +
-        '</div>' +
-        '<p style="color:var(--gray-600);margin-bottom:1rem;font-size:.9rem;">' + (u.bio||'“EzMate member.”') + '</p>' +
-        '<div class="mate-tags" style="display:flex;flex-wrap:wrap;gap:.5rem;font-size:.875rem;"></div>' +
-        '<button class="mate-btn rounded-lg shadow-md" type="button">View Profile</button>';
-
-      const tagWrap = card.querySelector('.mate-tags');
-      const hs = getHabits(u);
-      (hs.length ? hs.slice(0,6) : ['No habits set']).forEach(txt => {
-        const span = document.createElement('span');
-        span.className = 'mate-tag';
-        span.textContent = String(txt);
-        tagWrap.appendChild(span);
-      });
-
-      grid.appendChild(card);
-    });
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', syncUsers);
-  } else {
-    syncUsers();
-  }
-})();
-</script>
-<!-- ===================  ADDED SCRIPT ENDS HERE  =================== -->
 
 </body>
 </html>
