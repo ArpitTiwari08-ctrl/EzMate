@@ -1,6 +1,19 @@
 {
-  "version": 3,
+  "version": 2,
+
+  // Serve /index, /login, /roommates WITHOUT “.html”
+  "cleanUrls": true,
+  "trailingSlash": false,
+
+  // Ensure the Node function runs on a modern runtime
+  "functions": {
+    "api/*.js": {
+      "runtime": "nodejs18.x"
+    }
+  },
+
+  // (Optional but fine) Let API routes pass through as-is.
   "routes": [
-    { "src": "/api/(.*)", "dest": "/api/$1.js" }
+    { "src": "/api/(.*)", "dest": "/api/$1" }
   ]
 }
