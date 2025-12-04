@@ -38,7 +38,7 @@
     /* Habits modal */
     .modal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.35);z-index:50}
     .modal.show{display:flex}
-    .modal-card{background:#fff;border-radius:14px;border:1px solid #e5e7eb;max-width:640px;width:94%;padding:18px 18px 16px;box-shadow:var(--shadow-xl)}
+    .modal-card{background:#fff;border-radius:14px;border:1px solid var(--border);max-width:640px;width:94%;padding:18px 18px 16px;box-shadow:var(--shadow-xl)}
     .modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
     .modal-title{font-weight:800;margin:0;font-size:1.1rem}
     .modal-close{border:none;background:transparent;font-size:1.2rem;cursor:pointer;padding:.25rem .4rem;border-radius:8px}
@@ -164,7 +164,7 @@
     const SESSION_KEY = 'ezmate_current_user';
     const OTP_KEY = 'ezmate_otps';
 
-    // ===== Habits master list (can be reused by other pages if needed) =====
+    // ===== Habits master list =====
     const HABITS = [
       'Morning person','Night owl','Very clean','Tidy','Budget matched','Loves cooking','Meal prep',
       'Work from home','Quiet lifestyle','Moderately social','Plant lover','Hiker','Minimalist','Gym',
@@ -231,12 +231,12 @@
     }
     window.toggleForm = toggleForm;
 
-    // ===== Storage helpers =====
-    function loadUsers() {
+    // ===== Storage helpers (local) =====
+    function loadUsersLocal() {
       try { return JSON.parse(localStorage.getItem(USERS_KEY)) || []; }
       catch { return []; }
     }
-    function saveUsers(users) {
+    function saveUsersLocal(users) {
       localStorage.setItem(USERS_KEY, JSON.stringify(users));
     }
     function setSession(user) {
@@ -344,41 +344,6 @@
     }
     function normalizePhone(v){ return (v||'').replace(/\D/g,'').slice(-10); }
 
-    // ===== Sheet integration (minimal changes) =====
-    const SHEET_GET = "https://api.sheetbest.com/sheets/578f6242-bd5a-4373-8096-2a7c7c6bae62"; // GET allowed
-    const SHEET_POST_PROXY = "/api/sheet"; // POST via Vercel API (avoids 403/CORS)
-
-    async function postToSheet(row){
-      try{
-        const res = await fetch(SHEET_POST_PROXY, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(row)
-        });
-        return res.ok;
-      }catch{ return false; }
-    }
-
-    async function hydrateFromSheet(){
-      try{
-        const res = await fetch(SHEET_GET, { cache: "no-store" });
-        if(!res.ok) return;
-        const rows = await res.json();
-        if(!Array.isArray(rows)) return;
-        const existing = loadUsers();
-        const map = new Map(existing.map(u => [String(u.email||"").toLowerCase(), u]));
-        rows.forEach(r => {
-          const email = String(r.email||"").toLowerCase();
-          if(!email) return;
-          if(!map.has(email)){
-            const habits = typeof r.habits === "string" ? r.habits.split(",").map(s=>s.trim()).filter(Boolean) : (r.habits||[]);
-            map.set(email, { email: r.email, username: r.username || r.name || r.email.split("@")[0], phone: (r.phone||"").replace(/\D/g,"").slice(-10), habits, createdAt: r.createdAt || new Date().toISOString() });
-          }
-        });
-        saveUsers(Array.from(map.values()));
-      }catch{/* ignore */}
-    }
-
     // ===== Habits modal rendering =====
     function renderHabitsChecklist() {
       habitsGrid.innerHTML = HABITS.map((h, i) => `
@@ -402,7 +367,7 @@
 
     // ===== Sign Up =====
     async function handleSignup(email, password, username, phone) {
-      const users = loadUsers();
+      const users = loadUsersLocal();
 
       if (!username || username.length < 3) { showMessage('Username must be at least 3 characters.', false); return; }
       const phoneRaw = normalizePhone(phone);
@@ -416,55 +381,33 @@
       }
       if (password.length < 8) { showMessage('Password must be at least 8 characters.', false); return; }
 
+      // Prepare crypto but DO NOT write yet; we wait until habits are saved
       const saltB64 = toB64(randBytes(16));
       const hashB64 = await hashPassword(password, saltB64);
 
-      const newUser = {
+      // Stash pre-signup data so habits modal can finish the record
+      const pending = {
         email, username, phone: phoneRaw, salt: saltB64, hash: hashB64,
-        createdAt: new Date().toISOString(),
-        habits: [] // will be set via modal
+        createdAt: new Date().toISOString()
       };
-      users.push(newUser);
-      saveUsers(users);
-      setSession({ email, username });
-
-      // Open habits modal (mandatory) before redirect
+      sessionStorage.setItem('ezmate_pending_signup', JSON.stringify(pending));
+      setSession({ email, username }); // lightweight session to reach modal
       renderHabitsChecklist();
       habitsSave.disabled = true;
       habitsModal.classList.add('show');
-
-      habitsSave.onclick = async () => {
-        const selected = getSelectedHabits();
-        if (selected.length < 3) { validateHabits(); return; }
-        // persist habits into the just-created user
-        const all = loadUsers();
-        const idx = all.findIndex(u => u.email.toLowerCase() === email.toLowerCase());
-        if (idx !== -1) {
-          all[idx].habits = selected;
-          saveUsers(all);
-          setSession({ email: all[idx].email, username: all[idx].username, habits: selected });
-        }
-
-        // --- minimal change: try saving to Google Sheet via Vercel API proxy ---
-        const row = {
-          email, username, phone: phoneRaw,
-          habits: selected.join(', '),
-          createdAt: newUser.createdAt,
-          salt: newUser.salt,
-          hash: newUser.hash
-        };
-        const ok = await postToSheet(row);
-        showMessage(ok ? 'Profile saved to cloud.' : 'Saved locally (network issue).', ok);
-
-        setTimeout(() => window.location.href = 'index.html', 900);
-      };
     }
 
     // ===== Log In =====
     async function handleLogin(email, password, phone) {
-      await hydrateFromSheet(); // pull latest users so login works across devices
-      const users = loadUsers();
-      const user = users.find(u => u.email.toLowerCase() === email.toLowerCase());
+      // Try remote users first, then fallback to local cache
+      const remote = await apiGetUsersSafe();
+      if (remote && remote.length) {
+        // Cache remote to local for consistency
+        saveUsersLocal(remote);
+      }
+
+      const users = (remote && remote.length) ? remote : loadUsersLocal();
+      const user = users.find(u => (u.email || '').toLowerCase() === email.toLowerCase());
       if (!user) { showMessage('No account found. Try Sign Up.', false); return; }
 
       const phoneRaw = normalizePhone(phone);
@@ -472,9 +415,29 @@
       if (user.phone && user.phone !== phoneRaw) { showMessage('Phone number does not match this account.', false); return; }
       if (!loginOtpVerified) { showMessage('Please verify the OTP sent to your phone.', false); return; }
 
-      const computed = await hashPassword(password, user.salt);
-      if (computed !== user.hash) { showMessage('Incorrect password.', false); return; }
-      setSession({ email: user.email, username: user.username, habits: user.habits || [] });
+      // For remote rows, we expect salt/hash present; else fallback to local flow
+      const salt = user.salt;
+      const hash = user.hash;
+      if (!salt || !hash) {
+        // Legacy local user or missing crypto in sheet
+        const locals = loadUsersLocal();
+        const localUser = locals.find(u => (u.email || '').toLowerCase() === email.toLowerCase());
+        if (!localUser) { showMessage('Unable to verify password for this account.', false); return; }
+        const computedLocal = await hashPassword(password, localUser.salt);
+        if (computedLocal !== localUser.hash) { showMessage('Incorrect password.', false); return; }
+        setSession({ email: localUser.email, username: localUser.username, habits: localUser.habits || [] });
+      } else {
+        const computed = await hashPassword(password, salt);
+        if (computed !== hash) { showMessage('Incorrect password.', false); return; }
+        // parse habits if stored as CSV
+        const habits = Array.isArray(user.habits)
+          ? user.habits
+          : (typeof user.habits === 'string'
+              ? user.habits.split(',').map(s=>s.trim()).filter(Boolean)
+              : []);
+        setSession({ email: user.email, username: user.username, habits });
+      }
+
       showMessage('Log In successful! Redirecting...');
       setTimeout(() => window.location.href = 'index.html', 1200);
     }
@@ -559,18 +522,123 @@
       liOtpWrap.classList.add('hidden');
     });
 
-    // Optional global logout helper for other pages
+    // Optional global logout helper
     window.ezmateLogout = function () {
       sessionStorage.removeItem(SESSION_KEY);
       window.location.href = 'login.html';
     };
 
-    // Prepare habits modal validation + pre-hydrate users for better first load
+    // Prepare habits modal validation
     document.addEventListener('DOMContentLoaded', () => {
       renderHabitsChecklist();
       validateHabits();
-      hydrateFromSheet();
     });
+
+    // ===== Habits modal save → finalize signup & write to remote sheet =====
+    habitsSave.onclick = async () => {
+      const pending = JSON.parse(sessionStorage.getItem('ezmate_pending_signup') || 'null');
+      if (!pending) { showMessage('Signup context lost. Please try again.', false); return; }
+      const selected = getSelectedHabits();
+      if (selected.length < 3) { validateHabits(); return; }
+
+      // Build final user record
+      const newUser = {
+        email: pending.email,
+        username: pending.username,
+        phone: pending.phone,
+        salt: pending.salt,
+        hash: pending.hash,
+        createdAt: pending.createdAt,
+        habits: selected
+      };
+
+      // Local cache update first (instant UX)
+      const all = loadUsersLocal();
+      all.push(newUser);
+      saveUsersLocal(all);
+      setSession({ email: newUser.email, username: newUser.username, habits: selected });
+
+      // Try remote append (single POST with all fields incl. habits)
+      let cloudOK = false;
+      try {
+        await apiAppendUser({
+          email: newUser.email,
+          username: newUser.username,
+          phone: newUser.phone,
+          salt: newUser.salt,
+          hash: newUser.hash,
+          createdAt: newUser.createdAt,
+          bio: '', // optional
+          habits: selected.join(', ')
+        });
+        cloudOK = true;
+      } catch (err) {
+        cloudOK = false;
+      }
+
+      // Clear modal/session flag and continue
+      habitsModal.classList.remove('show');
+      sessionStorage.removeItem('ezmate_pending_signup');
+
+      showMessage(cloudOK ? 'Saved to cloud ✓' : 'Saved locally (network issue)');
+      setTimeout(() => window.location.href = 'index.html', 900);
+    };
+  </script>
+
+  <!-- ===== REMOTE DATA LAYER (new) — uses your Vercel proxy /api/sheet ===== -->
+  <script>
+    const API_BASE = '/api/sheet'; // serverless proxy on the same origin
+
+    async function apiGetUsers() {
+      const res = await fetch(`${API_BASE}?table=users`, { method:'GET', cache:'no-store' });
+      if (!res.ok) throw new Error('GET /api/sheet failed');
+      const rows = await res.json();
+      // normalize into the shape the app expects
+      return (Array.isArray(rows) ? rows : []).map(r => {
+        const habits = Array.isArray(r.habits)
+          ? r.habits
+          : (typeof r.habits === 'string'
+              ? r.habits.split(',').map(s=>s.trim()).filter(Boolean)
+              : []);
+        return {
+          email: r.email || r.Email || '',
+          username: r.username || r.Username || '',
+          phone: r.phone || r.Phone || '',
+          salt:  r.salt || r.Salt || '',
+          hash:  r.hash || r.Hash || '',
+          createdAt: r.createdAt || r.CreatedAt || r.created_at || '',
+          bio: r.bio || r.Bio || '',
+          habits
+        };
+      });
+    }
+
+    async function apiAppendUser(row) {
+      const res = await fetch(`${API_BASE}?table=users`, {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify(row)
+      });
+      if (!res.ok) throw new Error('POST /api/sheet failed');
+      return res.json();
+    }
+
+    async function apiUpdateUser(email, patch) {
+      const url = `${API_BASE}?table=users&email=${encodeURIComponent(email)}`;
+      const res = await fetch(url, {
+        method:'PATCH',
+        headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify(patch)
+      });
+      if (!res.ok) throw new Error('PATCH /api/sheet failed');
+      return res.json();
+    }
+
+    // Safe helper for login — swallow network errors and return null
+    async function apiGetUsersSafe(){
+      try { return await apiGetUsers(); }
+      catch { return null; }
+    }
   </script>
 </body>
 </html>
