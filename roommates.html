@@ -110,24 +110,26 @@
   </div>
 
   <script>
-    const USERS_KEY = 'ezmate_users';
+    const API_URL = '/api/sheet';            /* cloud proxy (Option 2) */
+    const USERS_KEY = 'ezmate_users';        /* local fallback only */
     const SESSION_KEY = 'ezmate_current_user';
 
-    function loadUsers(){ try { return JSON.parse(localStorage.getItem(USERS_KEY))||[] } catch { return [] } }
-    function saveUsers(users){ localStorage.setItem(USERS_KEY, JSON.stringify(users||[])); }
+    /* session helpers */
     function getSession(){ try { return JSON.parse(sessionStorage.getItem(SESSION_KEY)||'null') } catch { return null } }
 
-    // Normalize habits (array or CSV)
-    function normHabits(h){
-      if (Array.isArray(h)) return h.filter(Boolean).map(String);
-      if (typeof h === 'string') return h.split(',').map(s=>s.trim()).filter(Boolean);
+    /* normalize habits (array or CSV) */
+    function getHabits(u){
+      if(!u) return [];
+      if(Array.isArray(u.habits)) return u.habits.filter(Boolean).map(String);
+      if(typeof u.habits === 'string') return u.habits.split(',').map(s=>s.trim()).filter(Boolean);
+      if(u.preferences && Array.isArray(u.preferences.habits)) return u.preferences.habits.filter(Boolean).map(String);
       return [];
     }
 
-    // Basic Jaccard similarity on habits (0..1)
+    /* Basic Jaccard similarity on habits (0..1) */
     function habitsSimilarity(a = [], b = []) {
-      const A = new Set((a||[]).map(x=>x.toLowerCase()));
-      const B = new Set((b||[]).map(x=>x.toLowerCase()));
+      const A = new Set((a||[]).map(x=>String(x).toLowerCase()));
+      const B = new Set((b||[]).map(x=>String(x).toLowerCase()));
       if (!A.size && !B.size) return 0;
       let inter = 0;
       A.forEach(x=>{ if (B.has(x)) inter++; });
@@ -136,25 +138,27 @@
     }
 
     function initialFromName(name='?'){
-      const t = (name.trim().split(/\s+/)[0]||'?').charAt(0).toUpperCase();
+      const t = (String(name).trim().split(/\s+/)[0]||'?').charAt(0).toUpperCase();
       return t || '?';
     }
 
-    // NOTE: minimal tweak — add data-email and data-phone so Connect can find the right number
     function cardHtml(user, scorePct){
-      const tags = normHabits(user.habits).slice(0,3);
-      const role = (user.role) || (user.email?.includes('student') ? 'Verified Student' : 'Verified User');
+      const tags = getHabits(user).slice(0,3);
+      const role = (user.role) || (String(user.email||'').includes('student') ? 'Verified Student' : 'Verified User');
       const bio  = (user.bio) || 'No bio yet. This user recently joined EzMate.';
       const avatarColor = ['#2563EB','#10B981','#4F46E5','#1D4ED8','#0EA5E9','#EA580C','#7C3AED','#0F766E'][Math.floor(Math.random()*8)];
+      const emailAttr = (user.email||'').replace(/"/g,'');
+      const phoneAttr = (user.phone||'').replace(/"/g,'');
+
       return `
       <article class="card"
-               data-name="${user.username||'-'}"
+               data-name="${(user.username||user.email||'-').replace(/"/g,'&quot;')}"
                data-role="${role}"
-               data-tags="${normHabits(user.habits).join(' ').toLowerCase()}"
-               data-bio="${bio}"
-               data-profile="${bio}"
-               data-email="${user.email||''}"
-               data-phone="${user.phone||''}">
+               data-tags="${getHabits(user).join(' ').toLowerCase()}"
+               data-bio="${bio.replace(/"/g,'&quot;')}"
+               data-profile="${bio.replace(/"/g,'&quot;')}"
+               data-email="${emailAttr}"
+               ${phoneAttr ? `data-phone="${phoneAttr}"` : ''}>
         <div class="avatar" style="background:${avatarColor}">${initialFromName(user.username||user.email||'?')}</div>
         <div>
           <div class="head">
@@ -176,29 +180,44 @@
       </article>`;
     }
 
+    /* --- data sources --- */
+    async function loadCloudUsers(){
+      try{
+        const res = await fetch(API_URL, { method:'GET', headers:{'Accept':'application/json'} });
+        if(!res.ok) throw new Error('net');
+        const data = await res.json();
+        // Accept either {rows:[...]} or [...] shape
+        const rows = Array.isArray(data) ? data : (Array.isArray(data.rows) ? data.rows : []);
+        // Normalize keys commonly used in your project
+        return rows.map(r => ({
+          email: r.email || r.Email || r.mail || '',
+          username: r.username || r.name || r.Username || '',
+          phone: r.phone || r.Phone || '',
+          bio: r.bio || r.Bio || '',
+          habits: r.habits || r.Habits || r.preferences?.habits || []
+        })).filter(u => u.email);
+      }catch{
+        return null; // signal failure -> fallback
+      }
+    }
+    function loadLocalUsers(){
+      try { return JSON.parse(localStorage.getItem(USERS_KEY)) || []; } catch { return []; }
+    }
+
     async function renderList(){
       const list = document.getElementById('list');
       const session = getSession();
       const meEmail = (session?.email||'').toLowerCase();
+      const meHabits = getHabits(session) || (loadLocalUsers().find(u=>String(u.email||'').toLowerCase()===meEmail)?.habits || []);
 
-      // Try to load shared users from cloud (via proxy); fallback to local on error
-      let users = [];
-      try {
-        users = await apiGetUsers();                // <-- new
-        if (Array.isArray(users) && users.length){
-          saveUsers(users); // cache
-        } else {
-          users = loadUsers();
-        }
-      } catch {
-        users = loadUsers();
+      // Try cloud first
+      let users = await loadCloudUsers();
+      if(!users){
+        users = loadLocalUsers();
       }
 
-      const meLocal = users.find(u => (u.email||'').toLowerCase()===meEmail) || {};
-      const meHabits = normHabits(session?.habits?.length ? session.habits : meLocal.habits);
-
       // Others only
-      const others = users.filter(u => (u.email||'').toLowerCase() !== meEmail);
+      const others = (users||[]).filter(u => (String(u.email||'').toLowerCase() !== meEmail));
 
       if (!others.length){
         list.innerHTML = `<div style="background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:16px;color:#334155">
@@ -207,13 +226,16 @@
         return;
       }
 
-      // Sort by compatibility desc (same logic as index/previous)
+      // Sort by compatibility desc using the same Jaccard logic
       const enriched = others.map(u => {
-        const sim = habitsSimilarity(meHabits, normHabits(u.habits));
+        const sim = habitsSimilarity(meHabits, getHabits(u));
         return { user: u, pct: Math.round(sim*100) };
       }).sort((a,b)=>b.pct - a.pct);
 
       list.innerHTML = enriched.map(x => cardHtml(x.user, x.pct)).join('');
+
+      // After cards are in DOM, prepare search cache
+      setTimeout(snapshotSearchCache, 0);
     }
 
     // Search
@@ -226,29 +248,28 @@
         card.dataset.bio
       ].map(normalize).join(' ');
     }
+    let __searchCache = null;
+    function snapshotSearchCache(){
+      const cards = Array.from(document.querySelectorAll('.card'));
+      __searchCache = new Map(cards.map(c => [c, getSearchText(c)]));
+    }
     function wireSearch(){
       const searchEl = document.getElementById('search');
       const list = document.getElementById('list');
-      let cache = null;
-      function snapshot(){
-        const cards = Array.from(document.querySelectorAll('.card'));
-        cache = new Map(cards.map(c => [c, getSearchText(c)]));
-      }
       function applySearch(q){
         const needle = normalize(q).trim();
         const cards = Array.from(document.querySelectorAll('.card'));
         let visible = 0;
         cards.forEach(card => {
-          const hay = cache.get(card);
-          const show = !needle || hay.includes(needle);
+          const hay = __searchCache ? __searchCache.get(card) : getSearchText(card);
+          const show = !needle || (hay && hay.includes(needle));
           card.style.display = show ? 'grid' : 'none';
           if (show) visible++;
         });
         list.setAttribute('data-count', visible);
       }
       searchEl.addEventListener('input', (e)=>applySearch(e.target.value));
-      // first snapshot after render
-      setTimeout(()=>{ snapshot(); applySearch(''); }, 0);
+      setTimeout(()=>{ applySearch(''); }, 100);
     }
 
     // Modal (View Profile)
@@ -273,14 +294,22 @@
     document.addEventListener('click', (e)=>{
       const connect = e.target.closest('.js-connect');
       if (connect) {
-        // (kept original; our capture interceptor below prevents this from firing)
-        window.location.href = 'tel:9310281596';
+        // Prefer the profile owner's registered phone from data attributes
+        e.preventDefault();
+        e.stopPropagation();
+        const card = connect.closest('.card');
+        const raw = (card?.dataset?.phone || '').replace(/\D/g,'').slice(-10);
+        if(raw && raw.length===10){
+          window.location.href = `tel:+91${raw}`;
+        }else{
+          alert('Phone number for this profile is missing. Ask the user to add it in their profile.');
+        }
         return;
       }
       const view = e.target.closest('.js-view');
       if (view) {
         const card = view.closest('.card');
-        const title = card.dataset.name + ' — ' + card.dataset.role;
+        const title = (card.dataset.name || 'Profile') + ' — ' + (card.dataset.role || '');
         const body  = card.dataset.profile || card.dataset.bio || '';
         openModal(title, body);
       }
@@ -291,82 +320,10 @@
     document.addEventListener('keydown', (e)=>{ if (e.key === 'Escape' && modal.classList.contains('show')) closeModal(); });
 
     // Init
-    (async function(){ await renderList(); wireSearch(); })();
-  </script>
-
-  <!-- ADDED: Connect button should call the profile owner's registered phone -->
-  <script>
-    (function(){
-      const USERS_KEY = 'ezmate_users';
-      function loadUsers(){
-        try { return JSON.parse(localStorage.getItem(USERS_KEY)) || []; }
-        catch { return []; }
-      }
-      function normalizePhone(v){ return (v||'').replace(/\D/g,'').slice(-10); }
-
-      // Use capture phase so we intercept before the existing bubble-phase handler
-      document.addEventListener('click', function(e){
-        const btn = e.target.closest('.js-connect');
-        if(!btn) return;
-
-        // prevent the older handler (which dials fixed number) from running
-        e.preventDefault();
-        e.stopPropagation();
-
-        const card  = btn.closest('.card');
-        const users = loadUsers();
-
-        // 1) Prefer data-phone if present on the card
-        let tel = card?.dataset?.phone;
-
-        // 2) Try data-email match
-        if(!tel && card?.dataset?.email){
-          const u = users.find(x => (x.email || '').toLowerCase() === card.dataset.email.toLowerCase());
-          if(u) tel = u.phone;
-        }
-
-        // 3) Fallback: match by data-name to username or the email local-part
-        if(!tel && card?.dataset?.name){
-          const nm = card.dataset.name.trim().toLowerCase();
-          const u = users.find(x => {
-            const uname = (x.username || '').trim().toLowerCase();
-            const mailPart = (x.email || '').split('@')[0].trim().toLowerCase();
-            return uname === nm || mailPart === nm;
-          });
-          if(u) tel = u.phone;
-        }
-
-        const digits = normalizePhone(tel);
-        if(digits.length === 10){
-          window.location.href = `tel:+91${digits}`;
-        } else {
-          alert('Phone number for this profile is missing. Ask the user to add it in their profile.');
-        }
-      }, true); // capture
+    (async function init(){
+      await renderList();
+      wireSearch();
     })();
   </script>
-
-  <!-- NEW: Remote data layer (minimal) -->
-  <script>
-    const API_BASE = '/api/sheet';
-
-    // Fetch shared users from your Vercel proxy; normalize shape
-    async function apiGetUsers(){
-      const res = await fetch(`${API_BASE}?table=users`, { method:'GET', cache:'no-store' });
-      if(!res.ok) throw new Error('GET /api/sheet failed');
-      const rows = await res.json();
-      return (Array.isArray(rows) ? rows : []).map(r => ({
-        email: r.email || r.Email || '',
-        username: r.username || r.Username || '',
-        phone: r.phone || r.Phone || '',
-        salt:  r.salt || r.Salt || '',
-        hash:  r.hash || r.Hash || '',
-        createdAt: r.createdAt || r.CreatedAt || r.created_at || '',
-        bio: r.bio || r.Bio || '',
-        habits: normHabits(r.habits ?? r.Habits)
-      }));
-    }
-  </script>
-  
 </body>
 </html>
